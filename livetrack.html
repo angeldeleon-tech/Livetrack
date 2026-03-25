@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LiveTrack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Barlow:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg:#080b10;--surface:#0f1420;--s2:#0d1220;
+  --border:#1a2535;--accent:#00e676;--adim:rgba(0,230,118,.1);
+  --aglow:rgba(0,230,118,.3);--red:#ff3d5a;--amber:#ffab40;
+  --text:#d8e8f2;--muted:#4a5a6a;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;overflow:hidden}
+body{display:flex;flex-direction:column}
+
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0
+}
+.brand{display:flex;align-items:center;gap:9px}
+.bdot{
+  width:28px;height:28px;background:var(--accent);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 14px var(--aglow);flex-shrink:0
+}
+.bname{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px}
+.bname em{color:var(--accent);font-style:normal}
+
+.badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);
+  background:var(--s2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;transition:all .3s
+}
+.badge.on{color:var(--accent);border-color:var(--aglow)}
+.badge.err{color:var(--red);border-color:rgba(255,61,90,.3)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .3s}
+.badge.on .dot{background:var(--accent);animation:blink 1.2s infinite}
+.badge.err .dot{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+.tabs{display:flex;background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{
+  flex:1;padding:11px 0;text-align:center;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;user-select:none;transition:all .2s
+}
+.tab.on{color:var(--accent);border-color:var(--accent);background:rgba(0,230,118,.04)}
+
+/* Map containers — height set by JS */
+#map-share,#map-view{
+  width:100%;background:#0a0f17;
+  position:relative;flex-shrink:0;
+}
+.leaflet-tile{filter:brightness(.6) saturate(.5) hue-rotate(200deg)}
+.leaflet-control-zoom a{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+
+.panel{display:none;flex-direction:column;overflow:hidden}
+.panel.on{display:flex}
+
+.bar{
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:11px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0
+}
+
+.code-card{
+  background:var(--adim);border:1px solid rgba(0,230,118,.25);
+  border-radius:10px;padding:9px 13px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px
+}
+.clbl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:2px}
+.cval{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:8px;color:var(--accent)}
+.bcopy{
+  flex-shrink:0;background:none;border:1px solid rgba(0,230,118,.4);color:var(--accent);
+  padding:6px 12px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:1px;cursor:pointer;transition:all .2s
+}
+.bcopy:hover{background:var(--accent);color:var(--bg)}
+
+.stats{display:flex;gap:6px}
+.stat{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:6px 8px;min-width:0}
+.sl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
+.sv{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.bmain{
+  width:100%;padding:13px;border:none;border-radius:9px;
+  font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;
+  cursor:pointer;transition:opacity .2s,transform .1s
+}
+.bmain:active{transform:scale(.98)}
+.bmain:disabled{opacity:.4;cursor:default}
+.bstop{background:var(--red);color:#fff}
+
+.irow{display:flex;gap:8px}
+.cin{
+  flex:1;background:var(--s2);border:1px solid var(--border);color:var(--accent);
+  padding:10px 12px;border-radius:9px;font-family:'Bebas Neue',sans-serif;
+  font-size:24px;letter-spacing:6px;text-transform:uppercase;outline:none;min-width:0
+}
+.cin:focus{border-color:rgba(0,230,118,.4)}
+.cin::placeholder{color:var(--muted);letter-spacing:4px}
+.bconn{
+  flex-shrink:0;padding:10px 15px;border:none;border-radius:9px;
+  font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;
+  cursor:pointer;background:var(--accent);color:var(--bg);transition:opacity .2s
+}
+.bconn.disc{background:var(--red);color:#fff}
+
+.pin-me{
+  width:18px;height:18px;background:var(--accent);border-radius:50%;
+  border:3px solid #fff;box-shadow:0 0 0 4px var(--aglow),0 2px 8px rgba(0,0,0,.5);
+  animation:ping 1.8s infinite
+}
+@keyframes ping{
+  0%{box-shadow:0 0 0 0 var(--aglow),0 2px 8px rgba(0,0,0,.5)}
+  70%{box-shadow:0 0 0 12px rgba(0,230,118,0),0 2px 8px rgba(0,0,0,.5)}
+  100%{box-shadow:0 0 0 0 rgba(0,230,118,0),0 2px 8px rgba(0,0,0,.5)}
+}
+.pin-view{
+  width:18px;height:18px;background:#40c4ff;border-radius:50%;
+  border:3px solid #fff;box-shadow:0 0 0 4px rgba(64,196,255,.3),0 2px 8px rgba(0,0,0,.5)
+}
+
+.mover{
+  position:absolute;top:10px;left:10px;z-index:500;
+  background:rgba(8,11,16,.85);border:1px solid var(--border);
+  border-radius:8px;padding:7px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
+  line-height:1.7;backdrop-filter:blur(6px);pointer-events:none
+}
+.mover span{color:var(--text)}
+
+.toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(8px);
+  background:var(--surface);border:1px solid var(--border);
+  padding:9px 18px;border-radius:30px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;
+  z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.warn{
+  background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.4);
+  border-radius:9px;padding:10px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);line-height:1.6;display:none
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="bdot">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="#080b10">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+      </svg>
+    </div>
+    <span class="bname">LIVE<em>TRACK</em></span>
+  </div>
+  <div class="badge" id="bdg"><div class="dot"></div><span id="bdg-l">INICIANDO</span></div>
+</header>
+
+<div class="tabs">
+  <div class="tab on" id="tab-s" onclick="sw('s')">📡 &nbsp;COMPARTIR</div>
+  <div class="tab"    id="tab-v" onclick="sw('v')">👁 &nbsp;VER</div>
+</div>
+
+<!-- SHARE -->
+<div class="panel on" id="panel-s">
+  <div id="map-share">
+    <div class="mover" id="ov-s" style="display:none">📍 <span id="ov-c">--</span><br>🎯 <span id="ov-a">--</span></div>
+  </div>
+  <div class="bar" id="bar-s">
+    <div class="warn" id="warn">⚠️ GPS requiere HTTPS — abre esta app desde un servidor web (no desde Archivos).<br>Tip: súbela a GitHub Pages o usa la app de Files + Safari con acceso local.</div>
+    <div class="code-card">
+      <div><div class="clbl">Tu código — compártelo</div><div class="cval" id="mycode">------</div></div>
+      <button class="bcopy" onclick="doCopy()">COPIAR</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="sl">Precisión</div><div class="sv" id="s-ac">--</div></div>
+      <div class="stat"><div class="sl">Velocidad</div><div class="sv" id="s-sp">--</div></div>
+      <div class="stat"><div class="sl">Puntos</div><div class="sv" id="s-pt">0</div></div>
+      <div class="stat"><div class="sl">Estado</div><div class="sv" id="s-st" style="color:var(--amber)">INICIANDO</div></div>
+    </div>
+    <button class="bmain bstop" id="btn-stop" onclick="stopShare()">⏹ &nbsp;DETENER</button>
+  </div>
+</div>
+
+<!-- VIEW -->
+<div class="panel" id="panel-v">
+  <div id="map-view">
+    <div class="mover" id="ov-v" style="display:none">🕒 <span id="v-t">--</span><br>💨 <span id="v-s2">--</span></div>
+  </div>
+  <div class="bar" id="bar-v">
+    <div class="irow">
+      <input class="cin" id="v-in" maxlength="6" placeholder="CÓDIGO"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+      <button class="bconn" id="btn-c" onclick="toggleView()">ENTRAR</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="sl">Actualiz.</div><div class="sv" id="v-upd">--</div></div>
+      <div class="stat"><div class="sl">Velocidad</div><div class="sv" id="v-sp">--</div></div>
+      <div class="stat"><div class="sl">Puntos</div><div class="sv" id="v-pt">0</div></div>
+      <div class="stat"><div class="sl">Estado</div><div class="sv" id="v-st" style="color:var(--muted)">INACTIVO</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Firebase config (reemplaza con tu propio proyecto para uso privado)
+const FB_CFG = {
+  apiKey:"AIzaSyC2N8B0PwdGhMrYk1TJHfr3mDx_LIVERTR",
+  authDomain:"livetrack-rt.firebaseapp.com",
+  databaseURL:"https://livetrack-rt-default-rtdb.firebaseio.com",
+  projectId:"livetrack-rt"
+};
+
+// ── State
+const CODE = genCode();
+let sMap,vMap,sMk,vMk,sLine,vLine;
+let sTrail=[],vTrail=[];
+let watchId=null,isSharing=false;
+let viewOn=false,viewRef=null;
+let db=null,lastPub=0,lastViewTs=0;
+let vTimer=null;
+let curTab='s';
+const PUB=3500,MAXP=80;
+
+window.addEventListener('load',()=>{
+  $('mycode').textContent=CODE;
+  layout();
+  initMaps();
+  checkHTTPS();
+  initFB();
+});
+window.addEventListener('resize',layout);
+window.addEventListener('orientationchange',()=>setTimeout(()=>{layout();sMap?.invalidateSize();vMap?.invalidateSize();},350));
+
+function genCode(){
+  return Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
+}
+
+// ── Layout: compute map height dynamically
+function layout(){
+  const hdr=$('').offsetHeight||0; // unused
+  const headerH=document.querySelector('header').offsetHeight;
+  const tabsH=document.querySelector('.tabs').offsetHeight;
+  const avail=window.innerHeight-headerH-tabsH;
+
+  ['s','v'].forEach(t=>{
+    const panel=$('panel-'+t);
+    const mapEl=$('map-'+(t==='s'?'share':'view'));
+    const bar=$('bar-'+t);
+    if(!panel.classList.contains('on')){mapEl.style.height='0px';return;}
+    const barH=bar.offsetHeight;
+    const mapH=Math.max(100,avail-barH);
+    mapEl.style.height=mapH+'px';
+  });
+  setTimeout(()=>{sMap?.invalidateSize();vMap?.invalidateSize();},40);
+}
+
+function checkHTTPS(){
+  const ok=location.protocol==='https:'||location.hostname==='localhost';
+  if(!ok){$('warn').style.display='block';setTimeout(layout,60);}
+}
+
+// ── Maps
+const gIcon=L.divIcon({html:'<div class="pin-me"></div>',iconSize:[18,18],iconAnchor:[9,9],className:''});
+const bIcon=L.divIcon({html:'<div class="pin-view"></div>',iconSize:[18,18],iconAnchor:[9,9],className:''});
+
+function initMaps(){
+  sMap=L.map('map-share',{zoomControl:false,attributionControl:false}).setView([19.43,-99.13],14);
+  vMap=L.map('map-view', {zoomControl:false,attributionControl:false}).setView([19.43,-99.13],14);
+  const dark='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const osm='https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  [sMap,vMap].forEach(m=>{
+    const t=L.tileLayer(dark,{subdomains:'abcd',maxZoom:19}).addTo(m);
+    let fell=false;
+    t.on('tileerror',()=>{
+      if(fell)return;fell=true;
+      m.eachLayer(l=>{if(l instanceof L.TileLayer)m.removeLayer(l);});
+      L.tileLayer(osm,{maxZoom:19}).addTo(m);
+    });
+    L.control.zoom({position:'topright'}).addTo(m);
+  });
+  layout();
+}
+
+// ── Firebase
+function initFB(){
+  try{
+    firebase.initializeApp(FB_CFG);
+    db=firebase.database();
+    db.ref('.info/connected').on('value',snap=>{
+      if(snap.val()){
+        setBdg('on','CONECTADO');
+        toast('🟢 Firebase OK');
+        if(!isSharing)startShare();
+      }else{
+        setBdg('','RECONECTANDO');
+      }
+    });
+  }catch(e){
+    setBdg('err','SIN DB');
+    toast('❌ '+e.message.slice(0,40));
+    // Still try GPS even without Firebase (show on local map)
+    startShare();
+  }
+}
+
+function pub(lat,lng,acc,spd){
+  if(!db)return;
+  const now=Date.now();
+  if(now-lastPub<PUB)return;
+  lastPub=now;
+  const pts=sTrail.slice(-50).map(p=>({a:+p[0].toFixed(6),b:+p[1].toFixed(6)}));
+  db.ref('s/'+CODE).set({lat:+lat.toFixed(6),lng:+lng.toFixed(6),
+    acc:Math.round(acc),spd:spd?+(spd*3.6).toFixed(1):0,ts:now,t:pts});
+}
+
+// ── Sharing
+function startShare(){
+  if(!navigator.geolocation){toast('❌ GPS no disponible');setV('s-st','SIN GPS','var(--red)');return;}
+  isSharing=true;setV('s-st','ACTIVO','var(--accent)');toast('📍 Solicitando GPS…');
+  watchId=navigator.geolocation.watchPosition(onGPS,onGPSErr,{enableHighAccuracy:true,timeout:20000,maximumAge:1000});
+}
+
+function onGPS(pos){
+  const{latitude:lat,longitude:lng,accuracy:acc,speed:spd}=pos.coords;
+  const ll=[lat,lng];
+  if(!sMk){sMk=L.marker(ll,{icon:gIcon}).addTo(sMap);sMap.setView(ll,17);}
+  else{sMk.setLatLng(ll);if(curTab==='s')sMap.panTo(ll);}
+  sTrail.push(ll);if(sTrail.length>MAXP)sTrail.shift();
+  if(!sLine)sLine=L.polyline(sTrail,{color:'#00e676',weight:3,opacity:.6}).addTo(sMap);
+  else sLine.setLatLngs(sTrail);
+  setV('s-ac',Math.round(acc)+'m');setV('s-sp',(spd?spd*3.6|0:0)+' km/h');
+  setV('s-pt',sTrail.length);
+  setV('ov-c',lat.toFixed(5)+', '+lng.toFixed(5));setV('ov-a',Math.round(acc)+'m');
+  $('ov-s').style.display='block';
+  pub(lat,lng,acc,spd);
+}
+function onGPSErr(e){
+  const m=e.code===1?'Permiso GPS denegado':'Error GPS ('+e.code+')';
+  toast('❌ '+m);setV('s-st',m.slice(0,12),'var(--red)');
+}
+
+function stopShare(){
+  if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;}
+  if(db)db.ref('s/'+CODE).remove();
+  isSharing=false;
+  setV('s-st','DETENIDO','var(--muted)');
+  $('btn-stop').disabled=true;
+  toast('⏹ Compartición detenida');
+}
+
+// ── Viewing
+function toggleView(){viewOn?stopView():startView();}
+
+function startView(){
+  const code=$('v-in').value.trim().toUpperCase();
+  if(code.length!==6){toast('⚠️ Código de 6 caracteres');return;}
+  if(!db){toast('⏳ Sin conexión Firebase');return;}
+  viewRef=db.ref('s/'+code);
+  viewRef.on('value',snap=>{
+    const d=snap.val();
+    if(!d){setV('v-st','SIN SEÑAL','var(--amber)');return;}
+    onViewData(d);
+  });
+  viewOn=true;
+  $('btn-c').textContent='SALIR';$('btn-c').classList.add('disc');
+  $('v-in').disabled=true;
+  setV('v-st','ESCUCHANDO','var(--amber)');
+  toast('👁 Conectado a '+code+'…');
+}
+
+function stopView(){
+  if(viewRef){viewRef.off();viewRef=null;}
+  viewOn=false;vTrail=[];lastViewTs=0;clearTimeout(vTimer);
+  if(vMk){vMap.removeLayer(vMk);vMk=null;}
+  if(vLine){vMap.removeLayer(vLine);vLine=null;}
+  $('btn-c').textContent='ENTRAR';$('btn-c').classList.remove('disc');
+  $('v-in').disabled=false;
+  $('ov-v').style.display='none';
+  setV('v-st','INACTIVO','var(--muted)');
+  setV('v-upd','--');setV('v-sp','--');setV('v-pt','0');
+  toast('🔌 Desconectado');
+}
+
+function onViewData(d){
+  const ll=[d.lat,d.lng];
+  lastViewTs=d.ts||Date.now();
+  if(d.t?.length)vTrail=d.t.map(p=>[p.a,p.b]);
+  if(!vTrail.length||vTrail[vTrail.length-1][0]!==d.lat)vTrail.push(ll);
+  if(vTrail.length>MAXP)vTrail.shift();
+  if(!vMk){vMk=L.marker(ll,{icon:bIcon}).addTo(vMap);vMap.setView(ll,17);}
+  else{vMk.setLatLng(ll);if(curTab==='v')vMap.panTo(ll);}
+  if(!vLine)vLine=L.polyline(vTrail,{color:'#40c4ff',weight:3,opacity:.6}).addTo(vMap);
+  else vLine.setLatLngs(vTrail);
+  setV('v-sp',(d.spd||0)+' km/h');setV('v-s2',(d.spd||0)+' km/h');
+  setV('v-pt',vTrail.length);setV('v-st','EN VIVO','var(--accent)');
+  $('ov-v').style.display='block';
+  tick();
+}
+
+function tick(){
+  clearTimeout(vTimer);
+  const s=Math.round((Date.now()-lastViewTs)/1000);
+  const l=s<5?'Ahora':'Hace '+s+'s';
+  setV('v-upd',l);setV('v-t',l);
+  vTimer=setTimeout(tick,1000);
+}
+
+// ── Tab switch
+function sw(t){
+  curTab=t;
+  ['s','v'].forEach(x=>{
+    $('tab-'+x).classList.toggle('on',x===t);
+    $('panel-'+x).classList.toggle('on',x===t);
+  });
+  layout();
+  setTimeout(()=>{
+    sMap?.invalidateSize();vMap?.invalidateSize();
+    if(t==='s'&&sMk)sMap.panTo(sMk.getLatLng());
+    if(t==='v'&&vMk)vMap.panTo(vMk.getLatLng());
+  },80);
+}
+
+// ── Helpers
+function $(id){return document.getElementById(id);}
+function setV(id,val,col){const e=$(id);if(!e)return;e.textContent=val;if(col)e.style.color=col;}
+function setBdg(cls,lbl){
+  const b=$('bdg');b.className='badge'+(cls?' '+cls:'');
+  $('bdg-l').textContent=lbl;
+}
+function doCopy(){
+  navigator.clipboard?.writeText(CODE)
+    .then(()=>toast('✅ Copiado: '+CODE))
+    .catch(()=>toast('Código: '+CODE));
+}
+let _tt;
+function toast(msg){
+  const e=$('toast');e.textContent=msg;e.classList.add('show');
+  clearTimeout(_tt);_tt=setTimeout(()=>e.classList.remove('show'),3200);
+}
+</script>
+</body>
+</html>
