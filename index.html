@@ -3,453 +3,633 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#07090f">
 <title>LiveTrack</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Barlow:wght@300;400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/mqtt@5.5.0/dist/mqtt.min.js"></script>
 <style>
 :root{
-  --bg:#080b10;--surface:#0f1420;--s2:#0d1220;
-  --border:#1a2535;--accent:#00e676;--adim:rgba(0,230,118,.1);
-  --aglow:rgba(0,230,118,.3);--red:#ff3d5a;--amber:#ffab40;
-  --text:#d8e8f2;--muted:#4a5a6a;
+  --bg:#07090f; --sf:#0e1320; --s2:#0b1019;
+  --bd:#19243a; --ac:#00e676; --ad:rgba(0,230,118,.09);
+  --ag:rgba(0,230,118,.3); --red:#ff3d5a; --amb:#ffab40; --blue:#40c4ff;
+  --tx:#ccdaee; --mu:#3d5068;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;overflow:hidden}
-body{display:flex;flex-direction:column}
+html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Barlow',sans-serif;overflow:hidden}
 
-header{
-  background:var(--surface);border-bottom:1px solid var(--border);
-  padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0
-}
-.brand{display:flex;align-items:center;gap:9px}
-.bdot{
-  width:28px;height:28px;background:var(--accent);border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 0 14px var(--aglow);flex-shrink:0
-}
-.bname{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px}
-.bname em{color:var(--accent);font-style:normal}
+/* MAP */
+#map{position:fixed;inset:0;z-index:0}
+.leaflet-tile{filter:brightness(.58) saturate(.4) hue-rotate(195deg)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none}
 
-.badge{
-  display:flex;align-items:center;gap:6px;
-  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);
-  background:var(--s2);border:1px solid var(--border);padding:4px 10px;border-radius:20px;transition:all .3s
+/* HEADER PILL */
+.hdr{
+  position:fixed;top:env(safe-area-inset-top,16px);top:calc(env(safe-area-inset-top,0px) + 14px);
+  left:50%;transform:translateX(-50%);z-index:100;
+  background:rgba(14,19,32,.9);border:1px solid var(--bd);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-radius:40px;padding:8px 18px;
+  display:flex;align-items:center;gap:10px;white-space:nowrap;
 }
-.badge.on{color:var(--accent);border-color:var(--aglow)}
-.badge.err{color:var(--red);border-color:rgba(255,61,90,.3)}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .3s}
-.badge.on .dot{background:var(--accent);animation:blink 1.2s infinite}
-.badge.err .dot{background:var(--red)}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:4px}
+.logo em{color:var(--ac);font-style:normal}
+.cdot{width:7px;height:7px;border-radius:50%;background:var(--mu);flex-shrink:0;transition:background .3s}
+.cdot.on{background:var(--ac);animation:blink 1.4s infinite}
+.cdot.err{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+.clbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--mu)}
+.clbl.on{color:var(--ac)}
 
-.tabs{display:flex;background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0}
-.tab{
-  flex:1;padding:11px 0;text-align:center;
-  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;
-  color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;user-select:none;transition:all .2s
+/* BOTTOM SHEET */
+.sheet{
+  position:fixed;bottom:0;left:0;right:0;z-index:100;
+  background:rgba(9,14,24,.95);
+  border-radius:22px 22px 0 0;
+  border-top:1px solid var(--bd);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  padding-bottom:max(20px,env(safe-area-inset-bottom));
+  transition:transform .4s cubic-bezier(.32,1,.28,1);
 }
-.tab.on{color:var(--accent);border-color:var(--accent);background:rgba(0,230,118,.04)}
+.handle{width:36px;height:4px;background:var(--bd);border-radius:4px;margin:12px auto 16px}
 
-/* Map containers — height set by JS */
-#map-share,#map-view{
-  width:100%;background:#0a0f17;
-  position:relative;flex-shrink:0;
+/* STATS */
+.stats{display:flex;gap:8px;padding:0 16px 12px}
+.stat{flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:8px 6px;text-align:center;min-width:0}
+.sl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--mu);text-transform:uppercase}
+.sv{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--tx);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* DESTINATION ROW */
+.dest-row{
+  margin:0 16px 10px;padding:11px 14px;
+  background:var(--ad);border:1px dashed rgba(0,230,118,.22);border-radius:14px;
+  display:flex;align-items:center;gap:10px;cursor:pointer;transition:all .2s;
 }
-.leaflet-tile{filter:brightness(.6) saturate(.5) hue-rotate(200deg)}
-.leaflet-control-zoom a{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+.dest-row:active{opacity:.7}
+.dest-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--mu);text-transform:uppercase}
+.dest-val{font-size:13px;color:var(--ac);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.dest-clear{font-size:20px;color:var(--mu);margin-left:auto;flex-shrink:0;padding:2px 6px}
 
-.panel{display:none;flex-direction:column;overflow:hidden}
-.panel.on{display:flex}
+/* PROGRESS BAR */
+.prog-wrap{margin:0 16px 10px;display:none}
+.prog-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.prog-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--mu);text-transform:uppercase}
+.prog-dist{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--amb)}
+.prog-track{height:5px;background:var(--bd);border-radius:5px;overflow:hidden}
+.prog-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--ac),var(--amb));border-radius:5px;transition:width 1s ease}
 
-.bar{
-  background:var(--surface);border-top:1px solid var(--border);
-  padding:11px 14px;display:flex;flex-direction:column;gap:8px;flex-shrink:0
-}
-
-.code-card{
-  background:var(--adim);border:1px solid rgba(0,230,118,.25);
-  border-radius:10px;padding:9px 13px;
-  display:flex;align-items:center;justify-content:space-between;gap:10px
-}
-.clbl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);margin-bottom:2px}
-.cval{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:8px;color:var(--accent)}
-.bcopy{
-  flex-shrink:0;background:none;border:1px solid rgba(0,230,118,.4);color:var(--accent);
-  padding:6px 12px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;
-  letter-spacing:1px;cursor:pointer;transition:all .2s
-}
-.bcopy:hover{background:var(--accent);color:var(--bg)}
-
-.stats{display:flex;gap:6px}
-.stat{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:6px 8px;min-width:0}
-.sl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
-.sv{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-.bmain{
-  width:100%;padding:13px;border:none;border-radius:9px;
-  font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;
-  cursor:pointer;transition:opacity .2s,transform .1s
-}
-.bmain:active{transform:scale(.98)}
-.bmain:disabled{opacity:.4;cursor:default}
-.bstop{background:var(--red);color:#fff}
-
-.irow{display:flex;gap:8px}
-.cin{
-  flex:1;background:var(--s2);border:1px solid var(--border);color:var(--accent);
-  padding:10px 12px;border-radius:9px;font-family:'Bebas Neue',sans-serif;
-  font-size:24px;letter-spacing:6px;text-transform:uppercase;outline:none;min-width:0
-}
-.cin:focus{border-color:rgba(0,230,118,.4)}
-.cin::placeholder{color:var(--muted);letter-spacing:4px}
-.bconn{
-  flex-shrink:0;padding:10px 15px;border:none;border-radius:9px;
+/* ACTION BUTTONS */
+.btns{display:flex;gap:10px;padding:0 16px}
+.btn{
+  flex:1;padding:14px 8px;border:none;border-radius:14px;cursor:pointer;
   font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;
-  cursor:pointer;background:var(--accent);color:var(--bg);transition:opacity .2s
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  transition:transform .15s,opacity .2s;
 }
-.bconn.disc{background:var(--red);color:#fff}
+.btn:active{transform:scale(.96)}
+.btn-wa{background:#25d366;color:#fff;flex:2}
+.btn-stop{background:var(--s2);border:1px solid var(--bd);color:var(--red);font-size:13px;letter-spacing:1px}
 
+/* VIEWER MODE */
+.view-bar{
+  margin:0 16px 12px;padding:12px 14px;
+  background:rgba(64,196,255,.07);border:1px solid rgba(64,196,255,.2);
+  border-radius:14px;display:flex;align-items:center;gap:12px;
+}
+.vdot{width:9px;height:9px;border-radius:50%;background:var(--blue);flex-shrink:0;animation:blink 1.4s infinite}
+.vinfo{flex:1;min-width:0}
+.vname{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--blue)}
+.vsub{font-size:12px;color:var(--mu);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ARRIVED OVERLAY */
+.arrived{
+  position:fixed;inset:0;z-index:300;
+  background:rgba(7,9,15,.93);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  opacity:0;pointer-events:none;transition:opacity .6s;
+}
+.arrived.show{opacity:1;pointer-events:all}
+.arr-emoji{font-size:80px;animation:pop .6s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes pop{0%{transform:scale(0) rotate(-10deg)}100%{transform:scale(1) rotate(0)}}
+.arr-title{font-family:'Bebas Neue',sans-serif;font-size:44px;letter-spacing:6px;color:var(--ac);text-align:center;line-height:1}
+.arr-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:var(--mu);text-align:center;line-height:1.7;max-width:280px}
+.arr-cd{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--mu);margin-top:4px}
+.btn-arr{
+  margin-top:8px;padding:13px 32px;border:none;border-radius:50px;
+  background:var(--ac);color:var(--bg);
+  font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;cursor:pointer;
+}
+
+/* DEST MODAL */
+.modal-bg{
+  position:fixed;inset:0;z-index:200;background:rgba(7,9,15,.7);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.modal-bg.show{opacity:1;pointer-events:all}
+.modal{
+  width:100%;background:var(--sf);border-radius:22px 22px 0 0;
+  border-top:1px solid var(--bd);
+  padding:20px 20px max(20px,env(safe-area-inset-bottom));
+}
+.modal h3{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:4px;color:var(--tx);margin-bottom:4px}
+.modal p{font-size:12px;color:var(--mu);margin-bottom:16px;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px}
+.modal input{
+  width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--tx);
+  padding:13px 16px;border-radius:12px;font-size:15px;outline:none;margin-bottom:10px;
+}
+.modal input:focus{border-color:rgba(0,230,118,.4)}
+.modal input::placeholder{color:var(--mu)}
+.modal-btns{display:flex;gap:10px}
+.mbtn{
+  flex:1;padding:13px;border:none;border-radius:12px;cursor:pointer;
+  font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;
+}
+.mbtn-ok{background:var(--ac);color:var(--bg)}
+.mbtn-cancel{background:var(--s2);border:1px solid var(--bd);color:var(--mu)}
+
+/* MAP MARKERS */
 .pin-me{
-  width:18px;height:18px;background:var(--accent);border-radius:50%;
-  border:3px solid #fff;box-shadow:0 0 0 4px var(--aglow),0 2px 8px rgba(0,0,0,.5);
-  animation:ping 1.8s infinite
+  width:18px;height:18px;background:var(--ac);border-radius:50%;
+  border:3px solid #fff;box-shadow:0 0 0 4px var(--ag),0 2px 8px rgba(0,0,0,.5);
+  animation:ping 1.8s infinite;
 }
 @keyframes ping{
-  0%{box-shadow:0 0 0 0 var(--aglow),0 2px 8px rgba(0,0,0,.5)}
-  70%{box-shadow:0 0 0 12px rgba(0,230,118,0),0 2px 8px rgba(0,0,0,.5)}
+  0%{box-shadow:0 0 0 0 var(--ag),0 2px 8px rgba(0,0,0,.5)}
+  70%{box-shadow:0 0 0 14px rgba(0,230,118,0),0 2px 8px rgba(0,0,0,.5)}
   100%{box-shadow:0 0 0 0 rgba(0,230,118,0),0 2px 8px rgba(0,0,0,.5)}
 }
+.pin-dest{
+  width:20px;height:20px;background:var(--amb);border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);border:3px solid #fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.5);
+}
 .pin-view{
-  width:18px;height:18px;background:#40c4ff;border-radius:50%;
-  border:3px solid #fff;box-shadow:0 0 0 4px rgba(64,196,255,.3),0 2px 8px rgba(0,0,0,.5)
+  width:18px;height:18px;background:var(--blue);border-radius:50%;
+  border:3px solid #fff;box-shadow:0 0 0 4px rgba(64,196,255,.3),0 2px 8px rgba(0,0,0,.5);
 }
 
-.mover{
-  position:absolute;top:10px;left:10px;z-index:500;
-  background:rgba(8,11,16,.85);border:1px solid var(--border);
-  border-radius:8px;padding:7px 12px;
-  font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);
-  line-height:1.7;backdrop-filter:blur(6px);pointer-events:none
-}
-.mover span{color:var(--text)}
-
+/* TOAST */
 .toast{
-  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(8px);
-  background:var(--surface);border:1px solid var(--border);
+  position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-8px);
+  background:var(--sf);border:1px solid var(--bd);
   padding:9px 18px;border-radius:30px;
   font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;
-  z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s
+  z-index:400;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-.warn{
-  background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.4);
-  border-radius:9px;padding:10px 12px;
-  font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);line-height:1.6;display:none
-}
+/* VIEWER-only: no-sharer UI */
+.sharer-only{transition:opacity .3s}
+body.viewer-mode .sharer-only{display:none}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="brand">
-    <div class="bdot">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="#080b10">
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+<!-- HEADER -->
+<div class="hdr">
+  <span class="logo">LIVE<em>TRACK</em></span>
+  <div class="cdot" id="cdot"></div>
+  <span class="clbl" id="clbl">CONECTANDO</span>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- BOTTOM SHEET -->
+<div class="sheet" id="sheet">
+  <div class="handle"></div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat"><div class="sl">Precisión</div><div class="sv" id="s-acc">--</div></div>
+    <div class="stat"><div class="sl">Velocidad</div><div class="sv" id="s-spd">--</div></div>
+    <div class="stat sharer-only"><div class="sl">Puntos</div><div class="sv" id="s-pts">0</div></div>
+    <div class="stat sharer-only"><div class="sl">Estado</div><div class="sv" id="s-state" style="color:var(--amb)">GPS...</div></div>
+    <div class="stat" id="v-ago-stat" style="display:none"><div class="sl">Actualiz.</div><div class="sv" id="v-ago">--</div></div>
+  </div>
+
+  <!-- DESTINATION ROW (sharer) -->
+  <div class="dest-row sharer-only" id="dest-row" onclick="openDestModal()">
+    <span style="font-size:20px">🎯</span>
+    <div style="flex:1;min-width:0">
+      <div class="dest-lbl">Destino</div>
+      <div class="dest-val" id="dest-val">Toca para definir destino</div>
+    </div>
+    <span class="dest-clear" id="dest-clear" onclick="clearDest(event)" style="display:none">✕</span>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div class="prog-wrap" id="prog-wrap">
+    <div class="prog-top">
+      <span class="prog-lbl">Distancia al destino</span>
+      <span class="prog-dist" id="prog-dist">--</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+  </div>
+
+  <!-- VIEWER BAR (viewer mode) -->
+  <div class="view-bar" id="view-bar" style="display:none">
+    <div class="vdot"></div>
+    <div class="vinfo">
+      <div class="vname" id="v-name">UBICACIÓN EN VIVO</div>
+      <div class="vsub" id="v-sub">Esperando señal…</div>
+    </div>
+  </div>
+
+  <!-- ACTION BUTTONS -->
+  <div class="btns sharer-only">
+    <button class="btn btn-wa" id="btn-wa" onclick="shareWhatsApp()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
       </svg>
-    </div>
-    <span class="bname">LIVE<em>TRACK</em></span>
-  </div>
-  <div class="badge" id="bdg"><div class="dot"></div><span id="bdg-l">INICIANDO</span></div>
-</header>
-
-<div class="tabs">
-  <div class="tab on" id="tab-s" onclick="sw('s')">📡 &nbsp;COMPARTIR</div>
-  <div class="tab"    id="tab-v" onclick="sw('v')">👁 &nbsp;VER</div>
-</div>
-
-<!-- SHARE -->
-<div class="panel on" id="panel-s">
-  <div id="map-share">
-    <div class="mover" id="ov-s" style="display:none">📍 <span id="ov-c">--</span><br>🎯 <span id="ov-a">--</span></div>
-  </div>
-  <div class="bar" id="bar-s">
-    <div class="warn" id="warn">⚠️ GPS requiere HTTPS — abre esta app desde un servidor web (no desde Archivos).<br>Tip: súbela a GitHub Pages o usa la app de Files + Safari con acceso local.</div>
-    <div class="code-card">
-      <div><div class="clbl">Tu código — compártelo</div><div class="cval" id="mycode">------</div></div>
-      <button class="bcopy" onclick="doCopy()">COPIAR</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="sl">Precisión</div><div class="sv" id="s-ac">--</div></div>
-      <div class="stat"><div class="sl">Velocidad</div><div class="sv" id="s-sp">--</div></div>
-      <div class="stat"><div class="sl">Puntos</div><div class="sv" id="s-pt">0</div></div>
-      <div class="stat"><div class="sl">Estado</div><div class="sv" id="s-st" style="color:var(--amber)">INICIANDO</div></div>
-    </div>
-    <button class="bmain bstop" id="btn-stop" onclick="stopShare()">⏹ &nbsp;DETENER</button>
+      COMPARTIR
+    </button>
+    <button class="btn btn-stop" onclick="stopAndClear()">⏹ DETENER</button>
   </div>
 </div>
 
-<!-- VIEW -->
-<div class="panel" id="panel-v">
-  <div id="map-view">
-    <div class="mover" id="ov-v" style="display:none">🕒 <span id="v-t">--</span><br>💨 <span id="v-s2">--</span></div>
-  </div>
-  <div class="bar" id="bar-v">
-    <div class="irow">
-      <input class="cin" id="v-in" maxlength="6" placeholder="CÓDIGO"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
-      <button class="bconn" id="btn-c" onclick="toggleView()">ENTRAR</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="sl">Actualiz.</div><div class="sv" id="v-upd">--</div></div>
-      <div class="stat"><div class="sl">Velocidad</div><div class="sv" id="v-sp">--</div></div>
-      <div class="stat"><div class="sl">Puntos</div><div class="sv" id="v-pt">0</div></div>
-      <div class="stat"><div class="sl">Estado</div><div class="sv" id="v-st" style="color:var(--muted)">INACTIVO</div></div>
+<!-- ARRIVED OVERLAY -->
+<div class="arrived" id="arrived">
+  <div class="arr-emoji">🏁</div>
+  <div class="arr-title">¡LLEGASTE!</div>
+  <div class="arr-sub" id="arr-sub">Has llegado a tu destino.<br>Cerrando en <span id="arr-cd">10</span>s</div>
+  <button class="btn-arr" onclick="closeArrived()">CERRAR AHORA</button>
+</div>
+
+<!-- DEST MODAL -->
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal">
+    <h3>DEFINIR DESTINO</h3>
+    <p>Escribe la dirección o nombre del lugar</p>
+    <input id="dest-input" placeholder="Ej: Aeropuerto CDMX, Estadio Azteca…" autocomplete="off">
+    <div class="modal-btns">
+      <button class="mbtn mbtn-cancel" onclick="closeDestModal()">CANCELAR</button>
+      <button class="mbtn mbtn-ok" onclick="setDest()">FIJAR DESTINO</button>
     </div>
   </div>
 </div>
 
+<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
-// ── Firebase config (reemplaza con tu propio proyecto para uso privado)
-const FB_CFG = {
-  apiKey:"AIzaSyC2N8B0PwdGhMrYk1TJHfr3mDx_LIVERTR",
-  authDomain:"livetrack-rt.firebaseapp.com",
-  databaseURL:"https://livetrack-rt-default-rtdb.firebaseio.com",
-  projectId:"livetrack-rt"
-};
+// ══════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════
+const BROKERS = [
+  'wss://broker.hivemq.com:8884/mqtt',
+  'wss://broker.emqx.io:8084/mqtt',
+  'wss://test.mosquitto.org:8081/mqtt'
+];
+const PFX = 'LT4_', PUB_MS = 3500, MAX_PTS = 80;
+const ARRIVE_RADIUS = 80; // metres
 
-// ── State
-const CODE = genCode();
-let sMap,vMap,sMk,vMk,sLine,vLine;
-let sTrail=[],vTrail=[];
-let watchId=null,isSharing=false;
-let viewOn=false,viewRef=null;
-let db=null,lastPub=0,lastViewTs=0;
-let vTimer=null;
-let curTab='s';
-const PUB=3500,MAXP=80;
+// ══════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════
+const params   = new URLSearchParams(location.search);
+const VIEW_CODE = params.get('v')?.toUpperCase() || null;
+const IS_VIEWER = !!VIEW_CODE;
 
-window.addEventListener('load',()=>{
-  $('mycode').textContent=CODE;
-  layout();
-  initMaps();
-  checkHTTPS();
-  initFB();
+const CODE = VIEW_CODE || genCode();
+
+let map, myMarker, destMarker, viewMarker, myLine, viewLine;
+let myTrail = [], viewTrail = [];
+let watchId = null, isTracking = false;
+let client = null, brokerIdx = 0, connected = false;
+let lastPub = 0, lastViewTs = 0, vTimer = null;
+let destCoords = null, destName = '', totalDist = null;
+let arrivedShown = false, arrTimer = null;
+let myLat = null, myLng = null;
+
+// ══════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════
+window.addEventListener('load', () => {
+  if (IS_VIEWER) {
+    document.body.classList.add('viewer-mode');
+    document.getElementById('v-ago-stat').style.display = 'flex';
+    document.getElementById('view-bar').style.display = 'flex';
+  }
+  initMap();
+  initMQTT();
+  // Wake Lock - keep screen on
+  acquireWakeLock();
 });
-window.addEventListener('resize',layout);
-window.addEventListener('orientationchange',()=>setTimeout(()=>{layout();sMap?.invalidateSize();vMap?.invalidateSize();},350));
 
-function genCode(){
-  return Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
+function genCode() {
+  return Array.from({length:6}, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
 }
 
-// ── Layout: compute map height dynamically
-function layout(){
-  const hdr=$('').offsetHeight||0; // unused
-  const headerH=document.querySelector('header').offsetHeight;
-  const tabsH=document.querySelector('.tabs').offsetHeight;
-  const avail=window.innerHeight-headerH-tabsH;
+// ── WAKE LOCK
+let wakeLock = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  } catch(e) {}
+}
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible') acquireWakeLock();
+});
 
-  ['s','v'].forEach(t=>{
-    const panel=$('panel-'+t);
-    const mapEl=$('map-'+(t==='s'?'share':'view'));
-    const bar=$('bar-'+t);
-    if(!panel.classList.contains('on')){mapEl.style.height='0px';return;}
-    const barH=bar.offsetHeight;
-    const mapH=Math.max(100,avail-barH);
-    mapEl.style.height=mapH+'px';
+// ══════════════════════════════════════
+//  MAP
+// ══════════════════════════════════════
+function initMap() {
+  map = L.map('map', {zoomControl:false, attributionControl:false}).setView([19.43,-99.13], 13);
+  const dark = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const osm  = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  let fell = false;
+  const tiles = L.tileLayer(dark, {subdomains:'abcd', maxZoom:19}).addTo(map);
+  tiles.on('tileerror', () => {
+    if (fell) return; fell = true;
+    map.eachLayer(l => { if(l instanceof L.TileLayer) map.removeLayer(l); });
+    L.tileLayer(osm, {maxZoom:19}).addTo(map);
   });
-  setTimeout(()=>{sMap?.invalidateSize();vMap?.invalidateSize();},40);
 }
 
-function checkHTTPS(){
-  const ok=location.protocol==='https:'||location.hostname==='localhost';
-  if(!ok){$('warn').style.display='block';setTimeout(layout,60);}
-}
+const gIcon = L.divIcon({html:'<div class="pin-me"></div>',   iconSize:[18,18], iconAnchor:[9,9],  className:''});
+const dIcon = L.divIcon({html:'<div class="pin-dest"></div>', iconSize:[20,20], iconAnchor:[10,20],className:''});
+const vIcon = L.divIcon({html:'<div class="pin-view"></div>', iconSize:[18,18], iconAnchor:[9,9],  className:''});
 
-// ── Maps
-const gIcon=L.divIcon({html:'<div class="pin-me"></div>',iconSize:[18,18],iconAnchor:[9,9],className:''});
-const bIcon=L.divIcon({html:'<div class="pin-view"></div>',iconSize:[18,18],iconAnchor:[9,9],className:''});
-
-function initMaps(){
-  sMap=L.map('map-share',{zoomControl:false,attributionControl:false}).setView([19.43,-99.13],14);
-  vMap=L.map('map-view', {zoomControl:false,attributionControl:false}).setView([19.43,-99.13],14);
-  const dark='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-  const osm='https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  [sMap,vMap].forEach(m=>{
-    const t=L.tileLayer(dark,{subdomains:'abcd',maxZoom:19}).addTo(m);
-    let fell=false;
-    t.on('tileerror',()=>{
-      if(fell)return;fell=true;
-      m.eachLayer(l=>{if(l instanceof L.TileLayer)m.removeLayer(l);});
-      L.tileLayer(osm,{maxZoom:19}).addTo(m);
-    });
-    L.control.zoom({position:'topright'}).addTo(m);
+// ══════════════════════════════════════
+//  MQTT
+// ══════════════════════════════════════
+function initMQTT() {
+  setBadge('', 'BROKER '+(brokerIdx%3+1)+'/3');
+  const cid = 'lt_' + Math.random().toString(36).substr(2,9);
+  client = mqtt.connect(BROKERS[brokerIdx % BROKERS.length], {
+    clientId: cid, reconnectPeriod: 0, connectTimeout: 12000, keepalive: 25
   });
-  layout();
+  const timeout = setTimeout(() => { if (!connected) nextBroker(); }, 13000);
+
+  client.on('connect', () => {
+    clearTimeout(timeout);
+    connected = true;
+    setBadge('on', 'CONECTADO');
+    if (IS_VIEWER) {
+      subscribeViewer();
+    } else {
+      if (!isTracking) startGPS();
+    }
+  });
+  client.on('error', () => { clearTimeout(timeout); nextBroker(); });
+  client.on('close', () => { connected = false; if (!IS_VIEWER) setBadge('', 'RECONECTANDO'); });
+  client.on('message', (topic, payload) => {
+    try { const d = JSON.parse(payload.toString()); if (d?.lat) onData(d); } catch(e) {}
+  });
 }
 
-// ── Firebase
-function initFB(){
-  try{
-    firebase.initializeApp(FB_CFG);
-    db=firebase.database();
-    db.ref('.info/connected').on('value',snap=>{
-      if(snap.val()){
-        setBdg('on','CONECTADO');
-        toast('🟢 Firebase OK');
-        if(!isSharing)startShare();
-      }else{
-        setBdg('','RECONECTANDO');
-      }
-    });
-  }catch(e){
-    setBdg('err','SIN DB');
-    toast('❌ '+e.message.slice(0,40));
-    // Still try GPS even without Firebase (show on local map)
-    startShare();
+function nextBroker() {
+  try { client?.end(true); } catch(e) {}
+  connected = false; brokerIdx++;
+  if (brokerIdx >= BROKERS.length * 2) { setBadge('err','SIN CONEXIÓN'); return; }
+  setTimeout(initMQTT, 1500);
+}
+
+// ══════════════════════════════════════
+//  GPS / SHARER
+// ══════════════════════════════════════
+function startGPS() {
+  if (!navigator.geolocation) { toast('❌ GPS no disponible'); return; }
+  isTracking = true;
+  setV('s-state','ACTIVO','var(--ac)');
+  watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr,
+    {enableHighAccuracy:true, timeout:20000, maximumAge:1000});
+}
+
+function onGPS(pos) {
+  const {latitude:lat, longitude:lng, accuracy:acc, speed:spd} = pos.coords;
+  myLat = lat; myLng = lng;
+  const ll = [lat, lng];
+
+  // Marker
+  if (!myMarker) { myMarker = L.marker(ll,{icon:gIcon}).addTo(map); map.setView(ll,16); }
+  else { myMarker.setLatLng(ll); map.panTo(ll); }
+
+  // Trail
+  myTrail.push(ll);
+  if (myTrail.length > MAX_PTS) myTrail.shift();
+  if (!myLine) myLine = L.polyline(myTrail,{color:'#00e676',weight:3,opacity:.55}).addTo(map);
+  else myLine.setLatLngs(myTrail);
+
+  // Stats
+  setV('s-acc', Math.round(acc)+'m');
+  setV('s-spd', (spd ? (spd*3.6).toFixed(0) : '0')+' km/h');
+  setV('s-pts', myTrail.length);
+  setV('s-state','ACTIVO','var(--ac)');
+
+  // Destination check
+  if (destCoords) checkArrival(lat, lng);
+
+  // Publish
+  const now = Date.now();
+  if (now - lastPub >= PUB_MS && connected) {
+    lastPub = now;
+    const payload = {
+      lat:+lat.toFixed(6), lng:+lng.toFixed(6),
+      acc:Math.round(acc), spd:spd?+(spd*3.6).toFixed(1):0, ts:now,
+      trail: myTrail.slice(-50).map(p=>[+p[0].toFixed(6),+p[1].toFixed(6)]),
+      dest: destCoords ? {lat:destCoords[0], lng:destCoords[1], name:destName} : null
+    };
+    client.publish(PFX+CODE, JSON.stringify(payload), {retain:true, qos:1});
   }
 }
 
-function pub(lat,lng,acc,spd){
-  if(!db)return;
-  const now=Date.now();
-  if(now-lastPub<PUB)return;
-  lastPub=now;
-  const pts=sTrail.slice(-50).map(p=>({a:+p[0].toFixed(6),b:+p[1].toFixed(6)}));
-  db.ref('s/'+CODE).set({lat:+lat.toFixed(6),lng:+lng.toFixed(6),
-    acc:Math.round(acc),spd:spd?+(spd*3.6).toFixed(1):0,ts:now,t:pts});
+function onGPSErr(e) {
+  const m = e.code===1 ? 'Permiso GPS denegado' : 'Error GPS';
+  toast('❌ '+m); setV('s-state','ERROR','var(--red)');
 }
 
-// ── Sharing
-function startShare(){
-  if(!navigator.geolocation){toast('❌ GPS no disponible');setV('s-st','SIN GPS','var(--red)');return;}
-  isSharing=true;setV('s-st','ACTIVO','var(--accent)');toast('📍 Solicitando GPS…');
-  watchId=navigator.geolocation.watchPosition(onGPS,onGPSErr,{enableHighAccuracy:true,timeout:20000,maximumAge:1000});
-}
-
-function onGPS(pos){
-  const{latitude:lat,longitude:lng,accuracy:acc,speed:spd}=pos.coords;
-  const ll=[lat,lng];
-  if(!sMk){sMk=L.marker(ll,{icon:gIcon}).addTo(sMap);sMap.setView(ll,17);}
-  else{sMk.setLatLng(ll);if(curTab==='s')sMap.panTo(ll);}
-  sTrail.push(ll);if(sTrail.length>MAXP)sTrail.shift();
-  if(!sLine)sLine=L.polyline(sTrail,{color:'#00e676',weight:3,opacity:.6}).addTo(sMap);
-  else sLine.setLatLngs(sTrail);
-  setV('s-ac',Math.round(acc)+'m');setV('s-sp',(spd?spd*3.6|0:0)+' km/h');
-  setV('s-pt',sTrail.length);
-  setV('ov-c',lat.toFixed(5)+', '+lng.toFixed(5));setV('ov-a',Math.round(acc)+'m');
-  $('ov-s').style.display='block';
-  pub(lat,lng,acc,spd);
-}
-function onGPSErr(e){
-  const m=e.code===1?'Permiso GPS denegado':'Error GPS ('+e.code+')';
-  toast('❌ '+m);setV('s-st',m.slice(0,12),'var(--red)');
-}
-
-function stopShare(){
-  if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;}
-  if(db)db.ref('s/'+CODE).remove();
-  isSharing=false;
-  setV('s-st','DETENIDO','var(--muted)');
-  $('btn-stop').disabled=true;
+function stopAndClear() {
+  if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
+  if (connected) client.publish(PFX+CODE, '', {retain:true, qos:1});
+  isTracking=false; destCoords=null; destName='';
+  setV('s-state','DETENIDO','var(--mu)');
+  document.getElementById('prog-wrap').style.display='none';
+  document.getElementById('dest-val').textContent='Toca para definir destino';
+  document.getElementById('dest-clear').style.display='none';
+  if (destMarker) { map.removeLayer(destMarker); destMarker=null; }
   toast('⏹ Compartición detenida');
 }
 
-// ── Viewing
-function toggleView(){viewOn?stopView():startView();}
+// ══════════════════════════════════════
+//  WHATSAPP SHARE
+// ══════════════════════════════════════
+function shareWhatsApp() {
+  if (!connected) { toast('⏳ Conectando, espera…'); return; }
+  const base = location.origin + location.pathname;
+  const link = `${base}?v=${CODE}`;
+  const msg  = destName
+    ? `📍 Te comparto mi ubicación en vivo. Llego a: *${destName}*\n${link}`
+    : `📍 Te comparto mi ubicación en vivo:\n${link}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(wa, '_blank');
+  toast('✅ Abriendo WhatsApp…');
+}
 
-function startView(){
-  const code=$('v-in').value.trim().toUpperCase();
-  if(code.length!==6){toast('⚠️ Código de 6 caracteres');return;}
-  if(!db){toast('⏳ Sin conexión Firebase');return;}
-  viewRef=db.ref('s/'+code);
-  viewRef.on('value',snap=>{
-    const d=snap.val();
-    if(!d){setV('v-st','SIN SEÑAL','var(--amber)');return;}
-    onViewData(d);
+// ══════════════════════════════════════
+//  DESTINATION
+// ══════════════════════════════════════
+function openDestModal() { document.getElementById('modal-bg').classList.add('show'); document.getElementById('dest-input').focus(); }
+function closeDestModal() { document.getElementById('modal-bg').classList.remove('show'); }
+function closeModal(e) { if (e.target===document.getElementById('modal-bg')) closeDestModal(); }
+
+async function setDest() {
+  const q = document.getElementById('dest-input').value.trim();
+  if (!q) return;
+  closeDestModal();
+  toast('🔍 Buscando…');
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`);
+    const d = await r.json();
+    if (!d.length) { toast('❌ No se encontró el lugar'); return; }
+    const {lat,lon,display_name} = d[0];
+    destCoords = [parseFloat(lat), parseFloat(lon)];
+    destName   = q;
+    document.getElementById('dest-val').textContent = q;
+    document.getElementById('dest-clear').style.display='block';
+    document.getElementById('prog-wrap').style.display='block';
+    if (destMarker) map.removeLayer(destMarker);
+    destMarker = L.marker(destCoords,{icon:dIcon}).addTo(map);
+    destMarker.bindPopup('<b>🎯 Destino</b><br>'+q).openPopup();
+    if (myLat) {
+      totalDist = haversine(myLat,myLng,destCoords[0],destCoords[1]);
+      map.fitBounds([[myLat,myLng],destCoords],{padding:[60,60]});
+    }
+    arrivedShown = false;
+    toast('✅ Destino fijado: '+q);
+  } catch(e) { toast('❌ Error buscando destino'); }
+}
+
+function clearDest(e) {
+  e.stopPropagation();
+  destCoords=null; destName=''; totalDist=null; arrivedShown=false;
+  document.getElementById('dest-val').textContent='Toca para definir destino';
+  document.getElementById('dest-clear').style.display='none';
+  document.getElementById('prog-wrap').style.display='none';
+  if (destMarker) { map.removeLayer(destMarker); destMarker=null; }
+}
+
+function checkArrival(lat,lng) {
+  if (!destCoords || arrivedShown) return;
+  const d = haversine(lat,lng,destCoords[0],destCoords[1]);
+  const pct = Math.max(0, Math.min(100, (1 - d/totalDist)*100));
+  document.getElementById('prog-fill').style.width = pct+'%';
+  document.getElementById('prog-dist').textContent = d >= 1000 ? (d/1000).toFixed(1)+'km' : Math.round(d)+'m';
+  if (d <= ARRIVE_RADIUS) showArrived(false);
+}
+
+function haversine(la1,lo1,la2,lo2) {
+  const R=6371000, dLa=(la2-la1)*Math.PI/180, dLo=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ══════════════════════════════════════
+//  VIEWER MODE
+// ══════════════════════════════════════
+function subscribeViewer() {
+  client.subscribe(PFX+VIEW_CODE, {qos:1}, err => {
+    if (err) { toast('❌ No se pudo conectar'); return; }
+    setBadge('on','EN VIVO');
+    document.getElementById('v-name').textContent = 'UBICACIÓN: '+VIEW_CODE;
   });
-  viewOn=true;
-  $('btn-c').textContent='SALIR';$('btn-c').classList.add('disc');
-  $('v-in').disabled=true;
-  setV('v-st','ESCUCHANDO','var(--amber)');
-  toast('👁 Conectado a '+code+'…');
 }
 
-function stopView(){
-  if(viewRef){viewRef.off();viewRef=null;}
-  viewOn=false;vTrail=[];lastViewTs=0;clearTimeout(vTimer);
-  if(vMk){vMap.removeLayer(vMk);vMk=null;}
-  if(vLine){vMap.removeLayer(vLine);vLine=null;}
-  $('btn-c').textContent='ENTRAR';$('btn-c').classList.remove('disc');
-  $('v-in').disabled=false;
-  $('ov-v').style.display='none';
-  setV('v-st','INACTIVO','var(--muted)');
-  setV('v-upd','--');setV('v-sp','--');setV('v-pt','0');
-  toast('🔌 Desconectado');
+function onData(d) {
+  if (!IS_VIEWER) return;
+  lastViewTs = d.ts || Date.now();
+  const ll = [d.lat, d.lng];
+
+  if (d.trail?.length) viewTrail = d.trail.map(p=>[p[0],p[1]]);
+  if (!viewTrail.length || viewTrail[viewTrail.length-1][0]!==d.lat) viewTrail.push(ll);
+  if (viewTrail.length > MAX_PTS) viewTrail.shift();
+
+  if (!viewMarker) { viewMarker=L.marker(ll,{icon:vIcon}).addTo(map); map.setView(ll,16); }
+  else { viewMarker.setLatLng(ll); map.panTo(ll); }
+  if (!viewLine) viewLine=L.polyline(viewTrail,{color:'#40c4ff',weight:3,opacity:.55}).addTo(map);
+  else viewLine.setLatLngs(viewTrail);
+
+  setV('s-acc', d.acc+'m'); setV('s-spd', (d.spd||0)+' km/h');
+  document.getElementById('v-sub').textContent = lat5(d.lat)+', '+lat5(d.lng);
+
+  // Destination from publisher
+  if (d.dest) {
+    const dc = [d.dest.lat, d.dest.lng];
+    if (!destMarker) destMarker=L.marker(dc,{icon:dIcon}).addTo(map);
+    else destMarker.setLatLng(dc);
+    // Check arrival for viewer too
+    if (!arrivedShown) {
+      const dist = haversine(d.lat,d.lng,dc[0],dc[1]);
+      if (dist <= ARRIVE_RADIUS) showArrived(true, d.dest.name);
+    }
+  }
+  tickTime();
 }
 
-function onViewData(d){
-  const ll=[d.lat,d.lng];
-  lastViewTs=d.ts||Date.now();
-  if(d.t?.length)vTrail=d.t.map(p=>[p.a,p.b]);
-  if(!vTrail.length||vTrail[vTrail.length-1][0]!==d.lat)vTrail.push(ll);
-  if(vTrail.length>MAXP)vTrail.shift();
-  if(!vMk){vMk=L.marker(ll,{icon:bIcon}).addTo(vMap);vMap.setView(ll,17);}
-  else{vMk.setLatLng(ll);if(curTab==='v')vMap.panTo(ll);}
-  if(!vLine)vLine=L.polyline(vTrail,{color:'#40c4ff',weight:3,opacity:.6}).addTo(vMap);
-  else vLine.setLatLngs(vTrail);
-  setV('v-sp',(d.spd||0)+' km/h');setV('v-s2',(d.spd||0)+' km/h');
-  setV('v-pt',vTrail.length);setV('v-st','EN VIVO','var(--accent)');
-  $('ov-v').style.display='block';
-  tick();
-}
+function var_(name, fallback) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; }
+function lat5(n) { return (+n).toFixed(5); }
 
-function tick(){
+function tickTime() {
   clearTimeout(vTimer);
-  const s=Math.round((Date.now()-lastViewTs)/1000);
-  const l=s<5?'Ahora':'Hace '+s+'s';
-  setV('v-upd',l);setV('v-t',l);
-  vTimer=setTimeout(tick,1000);
+  const s = Math.round((Date.now()-lastViewTs)/1000);
+  const l = s<5?'Ahora':'Hace '+s+'s';
+  setV('v-ago', l);
+  vTimer = setTimeout(tickTime, 1000);
 }
 
-// ── Tab switch
-function sw(t){
-  curTab=t;
-  ['s','v'].forEach(x=>{
-    $('tab-'+x).classList.toggle('on',x===t);
-    $('panel-'+x).classList.toggle('on',x===t);
-  });
-  layout();
-  setTimeout(()=>{
-    sMap?.invalidateSize();vMap?.invalidateSize();
-    if(t==='s'&&sMk)sMap.panTo(sMk.getLatLng());
-    if(t==='v'&&vMk)vMap.panTo(vMk.getLatLng());
-  },80);
+// ══════════════════════════════════════
+//  ARRIVED
+// ══════════════════════════════════════
+function showArrived(isView, dName) {
+  arrivedShown = true;
+  const el = document.getElementById('arrived');
+  const sub = document.getElementById('arr-sub');
+  const place = dName || destName || 'tu destino';
+  sub.innerHTML = (isView ? 'Ha llegado a ' : 'Has llegado a ')+
+    '<strong>'+place+'</strong>.<br>Cerrando en <span id="arr-cd">10</span>s';
+  el.classList.add('show');
+  let cd = 10;
+  arrTimer = setInterval(() => {
+    cd--;
+    const cdEl = document.getElementById('arr-cd');
+    if (cdEl) cdEl.textContent = cd;
+    if (cd <= 0) closeArrived();
+  }, 1000);
 }
 
-// ── Helpers
-function $(id){return document.getElementById(id);}
-function setV(id,val,col){const e=$(id);if(!e)return;e.textContent=val;if(col)e.style.color=col;}
-function setBdg(cls,lbl){
-  const b=$('bdg');b.className='badge'+(cls?' '+cls:'');
-  $('bdg-l').textContent=lbl;
+function closeArrived() {
+  clearInterval(arrTimer);
+  document.getElementById('arrived').classList.remove('show');
+  if (IS_VIEWER) {
+    // Close the tab/window after a moment
+    setTimeout(() => { try { window.close(); } catch(e) {} }, 500);
+  }
 }
-function doCopy(){
-  navigator.clipboard?.writeText(CODE)
-    .then(()=>toast('✅ Copiado: '+CODE))
-    .catch(()=>toast('Código: '+CODE));
+
+// ══════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════
+function setBadge(cls, lbl) {
+  const d=document.getElementById('cdot'), l=document.getElementById('clbl');
+  d.className='cdot'+(cls?' '+cls:''); l.className='clbl'+(cls?' '+cls:'');
+  l.textContent=lbl;
+}
+function setV(id,val,col) {
+  const e=document.getElementById(id); if(!e)return;
+  e.textContent=val; if(col)e.style.color=col;
 }
 let _tt;
-function toast(msg){
-  const e=$('toast');e.textContent=msg;e.classList.add('show');
-  clearTimeout(_tt);_tt=setTimeout(()=>e.classList.remove('show'),3200);
+function toast(msg) {
+  const e=document.getElementById('toast');
+  e.textContent=msg; e.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>e.classList.remove('show'),3200);
 }
 </script>
 </body>
