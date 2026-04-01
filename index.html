@@ -241,14 +241,22 @@ body.viewer-mode .sharer-only{display:none}
   </div>
 
   <!-- ACTION BUTTONS -->
-  <div class="btns sharer-only">
-    <button class="btn btn-wa" id="btn-wa" onclick="shareWhatsApp()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-      </svg>
-      COMPARTIR
-    </button>
-    <button class="btn btn-stop" onclick="stopAndClear()">⏹ DETENER</button>
+  <div class="sharer-only" style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <div style="position:relative;flex:1">
+        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none">🇲🇽</span>
+        <input id="phone-input" type="tel" inputmode="numeric"
+          placeholder="Número WhatsApp (10 dígitos)"
+          style="width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:12px 12px 12px 36px;border-radius:12px;font-size:15px;outline:none;font-family:'Barlow',sans-serif"
+          oninput="this.value=this.value.replace(/[^0-9+]/g,'')"
+          onkeydown="if(event.key==='Enter')sendWA()">
+      </div>
+      <button onclick="sendWA()" style="flex-shrink:0;padding:12px 16px;border:none;border-radius:12px;background:#25d366;cursor:pointer;display:flex;align-items:center;gap:6px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#fff;transition:transform .15s" onactive="this.style.transform='scale(.96)'">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        ENVIAR
+      </button>
+    </div>
+    <button class="btn btn-stop" style="width:100%;padding:11px;border:none;border-radius:12px;background:var(--s2);border:1px solid var(--bd);color:var(--red);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="stopAndClear()">⏹ DETENER COMPARTICIÓN</button>
   </div>
 </div>
 
@@ -365,6 +373,8 @@ function initMQTT() {
     if (IS_VIEWER) {
       subscribeViewer();
     } else {
+      // Always subscribe to ping topic so we get viewer notifications
+      client.subscribe(PFX+'PING_'+CODE, {qos:0});
       if (!isTracking) startGPS();
     }
   });
@@ -397,8 +407,7 @@ function startGPS() {
   setV('s-state','ACTIVO','var(--ac)');
   watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr,
     {enableHighAccuracy:true, timeout:20000, maximumAge:1000});
-  // Subscribe to ping notifications from viewers
-  if (connected) client.subscribe(PFX+'PING_'+CODE, {qos:0});
+
 }
 
 function onGPS(pos) {
@@ -425,9 +434,9 @@ function onGPS(pos) {
   // Destination check
   if (destCoords) checkArrival(lat, lng);
 
-  // Publish
+  // Publish (always publish on first fix, then throttle)
   const now = Date.now();
-  if (now - lastPub >= PUB_MS && connected) {
+  if (connected && (myTrail.length === 1 || now - lastPub >= PUB_MS)) {
     lastPub = now;
     const payload = {
       lat:+lat.toFixed(6), lng:+lng.toFixed(6),
@@ -459,16 +468,20 @@ function stopAndClear() {
 // ══════════════════════════════════════
 //  WHATSAPP SHARE
 // ══════════════════════════════════════
-function shareWhatsApp() {
-  if (!connected) { toast('⏳ Conectando, espera…'); return; }
+function sendWA() {
+  if (!connected) { toast('⏳ Aún conectando, espera…'); return; }
+  let phone = (document.getElementById('phone-input').value || '').replace(/[^0-9]/g,'');
+  if (!phone) { toast('⚠️ Escribe un número de WhatsApp'); return; }
+  // If 10 digits assume Mexico (+52)
+  if (phone.length === 10) phone = '52' + phone;
   const base = location.origin + location.pathname;
-  const link = `${base}?v=${CODE}`;
+  const link = base + '?v=' + CODE;
   const msg  = destName
-    ? `📍 Te comparto mi ubicación en vivo. Llego a: *${destName}*\n${link}`
-    : `📍 Te comparto mi ubicación en vivo:\n${link}`;
-  const wa = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    ? '📍 Te comparto mi ubicación en vivo. Llego a: *' + destName + '*\n\n' + link
+    : '📍 Te comparto mi ubicación en vivo:\n\n' + link;
+  const wa = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
   window.open(wa, '_blank');
-  toast('✅ Abriendo WhatsApp…');
+  toast('✅ Abriendo chat con ' + phone.replace('52',''));
 }
 
 // ══════════════════════════════════════
@@ -636,14 +649,23 @@ function initMap() {
 }
 
 function setTiles() {
-  if (tileLayer) map.removeLayer(tileLayer);
+  if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
   const url = darkTheme
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-  tileLayer = L.tileLayer(url, {subdomains:'abcd', maxZoom:19}).addTo(map);
-  document.querySelector('.leaflet-tile-pane').style.filter = darkTheme
-    ? 'brightness(.58) saturate(.4) hue-rotate(195deg)'
-    : 'none';
+  tileLayer = L.tileLayer(url, {subdomains:'abcd', maxZoom:19});
+  let fell = false;
+  tileLayer.on('tileerror', () => {
+    if (fell) return; fell = true;
+    map.removeLayer(tileLayer);
+    tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
+  });
+  tileLayer.addTo(map);
+  // Apply filter via CSS on the pane
+  setTimeout(() => {
+    const pane = document.querySelector('.leaflet-tile-pane');
+    if (pane) pane.style.filter = darkTheme ? 'brightness(.58) saturate(.4) hue-rotate(195deg)' : 'none';
+  }, 100);
 }
 
 function toggleTheme() {
