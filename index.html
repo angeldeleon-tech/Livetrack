@@ -193,6 +193,7 @@ body.viewer-mode .sharer-only{display:none}
   <span class="logo">LIVE<em>TRACK</em></span>
   <div class="cdot" id="cdot"></div>
   <span class="clbl" id="clbl">CONECTANDO</span>
+  <button onclick="toggleTheme()" id="theme-btn" style="background:none;border:1px solid var(--bd);color:var(--tx);border-radius:20px;padding:4px 10px;font-size:13px;cursor:pointer;margin-left:6px;font-family:'IBM Plex Mono',monospace;flex-shrink:0">☀️</button>
 </div>
 
 <!-- MAP -->
@@ -340,18 +341,7 @@ document.addEventListener('visibilitychange', async () => {
 // ══════════════════════════════════════
 //  MAP
 // ══════════════════════════════════════
-function initMap() {
-  map = L.map('map', {zoomControl:false, attributionControl:false}).setView([19.43,-99.13], 13);
-  const dark = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-  const osm  = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  let fell = false;
-  const tiles = L.tileLayer(dark, {subdomains:'abcd', maxZoom:19}).addTo(map);
-  tiles.on('tileerror', () => {
-    if (fell) return; fell = true;
-    map.eachLayer(l => { if(l instanceof L.TileLayer) map.removeLayer(l); });
-    L.tileLayer(osm, {maxZoom:19}).addTo(map);
-  });
-}
+// initMap moved above utils section
 
 const gIcon = L.divIcon({html:'<div class="pin-me"></div>',   iconSize:[18,18], iconAnchor:[9,9],  className:''});
 const dIcon = L.divIcon({html:'<div class="pin-dest"></div>', iconSize:[20,20], iconAnchor:[10,20],className:''});
@@ -381,7 +371,13 @@ function initMQTT() {
   client.on('error', () => { clearTimeout(timeout); nextBroker(); });
   client.on('close', () => { connected = false; if (!IS_VIEWER) setBadge('', 'RECONECTANDO'); });
   client.on('message', (topic, payload) => {
-    try { const d = JSON.parse(payload.toString()); if (d?.lat) onData(d); } catch(e) {}
+    try {
+      const raw = payload.toString();
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d?.ping) onViewerJoined(d);
+      else if (d?.lat) onData(d);
+    } catch(e) {}
   });
 }
 
@@ -401,6 +397,8 @@ function startGPS() {
   setV('s-state','ACTIVO','var(--ac)');
   watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr,
     {enableHighAccuracy:true, timeout:20000, maximumAge:1000});
+  // Subscribe to ping notifications from viewers
+  if (connected) client.subscribe(PFX+'PING_'+CODE, {qos:0});
 }
 
 function onGPS(pos) {
@@ -539,6 +537,9 @@ function subscribeViewer() {
     if (err) { toast('❌ No se pudo conectar'); return; }
     setBadge('on','EN VIVO');
     document.getElementById('v-name').textContent = 'UBICACIÓN: '+VIEW_CODE;
+    // Notify sharer someone joined
+    const ping = JSON.stringify({ping:true, ts:Date.now()});
+    client.publish(PFX+'PING_'+VIEW_CODE, ping, {retain:false, qos:0});
   });
 }
 
@@ -611,6 +612,45 @@ function closeArrived() {
     // Close the tab/window after a moment
     setTimeout(() => { try { window.close(); } catch(e) {} }, 500);
   }
+}
+
+// ══════════════════════════════════════
+//  VIEWER NOTIFICATION
+// ══════════════════════════════════════
+function onViewerJoined(d) {
+  if (IS_VIEWER) return;
+  // Vibrate if supported
+  try { navigator.vibrate && navigator.vibrate([200,100,200]); } catch(e){}
+  toast('👁 Alguien está viendo tu ubicación');
+}
+
+// ══════════════════════════════════════
+//  MAP THEME
+// ══════════════════════════════════════
+let darkTheme = true;
+let tileLayer = null;
+
+function initMap() {
+  map = L.map('map', {zoomControl:false, attributionControl:false}).setView([19.43,-99.13], 13);
+  setTiles();
+}
+
+function setTiles() {
+  if (tileLayer) map.removeLayer(tileLayer);
+  const url = darkTheme
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  tileLayer = L.tileLayer(url, {subdomains:'abcd', maxZoom:19}).addTo(map);
+  document.querySelector('.leaflet-tile-pane').style.filter = darkTheme
+    ? 'brightness(.58) saturate(.4) hue-rotate(195deg)'
+    : 'none';
+}
+
+function toggleTheme() {
+  darkTheme = !darkTheme;
+  document.getElementById('theme-btn').textContent = darkTheme ? '☀️' : '🌙';
+  document.body.style.background = darkTheme ? 'var(--bg)' : '#f0f4f8';
+  setTiles();
 }
 
 // ══════════════════════════════════════
