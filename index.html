@@ -22,7 +22,6 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Barlow',
 
 /* MAP */
 #map{position:fixed;inset:0;z-index:0}
-.leaflet-tile{filter:brightness(.58) saturate(.4) hue-rotate(195deg)}
 .leaflet-control-attribution,.leaflet-control-zoom{display:none}
 
 /* HEADER PILL */
@@ -714,24 +713,15 @@ function initMap() {
   setTiles();
 }
 
+// CARTO ahora exige API key para sus mapas (dibuja "API KEY REQUIRED" encima en
+// vez de dar error, así que el respaldo nunca se activaba). Se usa OpenStreetMap
+// y el modo oscuro se logra invirtiendo los colores con un filtro CSS.
+const DARK_FILTER = 'invert(1) hue-rotate(180deg) brightness(.82) contrast(.9) saturate(.55)';
 function setTiles() {
   if (tileLayer) { map.removeLayer(tileLayer); tileLayer = null; }
-  const url = darkTheme
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-  tileLayer = L.tileLayer(url, {subdomains:'abcd', maxZoom:19});
-  let fell = false;
-  tileLayer.on('tileerror', () => {
-    if (fell) return; fell = true;
-    map.removeLayer(tileLayer);
-    tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
-  });
-  tileLayer.addTo(map);
-  // Apply filter via CSS on the pane
-  setTimeout(() => {
-    const pane = document.querySelector('.leaflet-tile-pane');
-    if (pane) pane.style.filter = darkTheme ? 'brightness(.58) saturate(.4) hue-rotate(195deg)' : 'none';
-  }, 100);
+  tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
+  const pane = document.querySelector('.leaflet-tile-pane');
+  if (pane) pane.style.filter = darkTheme ? DARK_FILTER : 'none';
 }
 
 function toggleTheme() {

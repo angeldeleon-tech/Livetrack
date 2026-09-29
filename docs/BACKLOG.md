@@ -44,3 +44,14 @@
   mientras compartía (`visibilitychange`), para que sepa que el otro vio la
   ubicación congelada. La causa es de iOS: una PWA no recibe GPS en segundo
   plano; el Wake Lock solo evita que la pantalla se apague sola.
+
+## 29-sep-2026 — Fix: el mapa decía "API KEY REQUIRED"
+
+- **Causa:** los mapas de CARTO (`basemaps.cartocdn.com`) ahora exigen API key.
+  No devuelven error: dibujan la marca de agua "API KEY REQUIRED" encima, por
+  eso el respaldo a OpenStreetMap (`tileerror`) nunca se activaba.
+- **Fix:** `setTiles()` usa OpenStreetMap siempre; el modo oscuro se hace con
+  un filtro CSS de inversión sobre el panel de mosaicos (`DARK_FILTER`), el
+  claro sin filtro. Se quitó el filtro por mosaico de `.leaflet-tile` (se
+  aplicaba doble).
+- **Ojo:** `ltrax` tiene el mismo problema (mismo proveedor de mapas).
