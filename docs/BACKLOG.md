@@ -15,3 +15,9 @@
      caracteres: hoy viaja por brokers MQTT públicos y no caduca.
   3. Aviso en pantalla de que en iPhone el GPS solo actualiza con la pantalla
      encendida (ya usa Wake Lock).
+
+## 29-sep-2026 — Hecho: botón "🕓 COMPARTIR POR LATER"
+
+- `index.html` (`shareLater`): abre `latherwhats.vercel.app/?body=…&source=livetrack`
+  con el mensaje y la liga en vivo; el contacto se elige en LaterWhats y se
+  manda al momento o se programa. Queda pendiente la caducidad de la liga.

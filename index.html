@@ -256,6 +256,7 @@ body.viewer-mode .sharer-only{display:none}
         ENVIAR
       </button>
     </div>
+    <button style="width:100%;padding:11px;border:none;border-radius:12px;background:#128C7E;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="shareLater()">🕓 COMPARTIR POR LATER</button>
     <button class="btn btn-stop" style="width:100%;padding:11px;border:none;border-radius:12px;background:var(--s2);border:1px solid var(--bd);color:var(--red);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="stopAndClear()">⏹ DETENER COMPARTICIÓN</button>
   </div>
 </div>
@@ -468,6 +469,18 @@ function stopAndClear() {
 // ══════════════════════════════════════
 //  WHATSAPP SHARE
 // ══════════════════════════════════════
+// Compartir por LaterWhats: abre LaterWhats con el mensaje y la liga ya
+// puestos (?body=…&source=livetrack); ahí se elige el contacto y se manda o
+// programa. Quien recibe abre la liga y ve el mapa sin login.
+function shareLater() {
+  if (!connected) { toast('⏳ Aún conectando, espera…'); return; }
+  const link = location.origin + location.pathname + '?v=' + CODE;
+  const body = destName
+    ? '📍 Te comparto mi ubicación en vivo. Llego a: *' + destName + '*\n' + link
+    : '📍 Te comparto mi ubicación en vivo:\n' + link;
+  window.open('https://latherwhats.vercel.app/?' + new URLSearchParams({ body, source: 'livetrack' }), '_blank');
+}
+
 function sendWA() {
   if (!connected) { toast('⏳ Aún conectando, espera…'); return; }
   let phone = (document.getElementById('phone-input').value || '').replace(/[^0-9]/g,'');
