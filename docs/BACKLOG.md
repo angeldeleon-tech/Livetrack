@@ -21,3 +21,18 @@
 - `index.html` (`shareLater`): abre `latherwhats.vercel.app/?body=…&source=livetrack`
   con el mensaje y la liga en vivo; el contacto se elige en LaterWhats y se
   manda al momento o se programa. Queda pendiente la caducidad de la liga.
+
+## 29-sep-2026 — Hecho: la liga caduca y el código es de 12 caracteres
+
+- **Código:** `genCode()` ahora saca 12 caracteres (60 bits) con
+  `crypto.getRandomValues`. Antes eran 6 con `Math.random`, y como el código es
+  el tema MQTT de un broker público, era la única barrera.
+- **Caducidad:** selector "⏱ La liga funciona durante" (30 min, 1 h —por
+  defecto—, 8 h o sin límite). El que comparte calcula `expAt` al empezar y lo
+  manda en cada punto (`exp`). Al vencer, `expireShare()` deja de publicar y
+  borra el mensaje retenido. El visor rechaza cualquier punto con `exp` vencido
+  y muestra "⏰ Esta liga ya caducó" (revisa cada 5 s).
+- **Límite:** es una barrera del lado del cliente. Sin servidor propio, quien
+  hable directo con el broker MQTT podría ignorar `exp`; el código largo es lo
+  que lo hace impráctico. Las ligas viejas de 6 caracteres siguen abriendo.
+- `docs`: el aviso del GPS en iPhone (solo con pantalla encendida) sigue pendiente.

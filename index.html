@@ -256,6 +256,15 @@ body.viewer-mode .sharer-only{display:none}
         ENVIAR
       </button>
     </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mu)">
+      <span>⏱ La liga funciona durante</span>
+      <select id="dur" onchange="setDuration(true)" style="flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:9px;border-radius:10px;font-size:14px">
+        <option value="30">30 minutos</option>
+        <option value="60" selected>1 hora</option>
+        <option value="480">8 horas</option>
+        <option value="0">Sin límite</option>
+      </select>
+    </div>
     <button style="width:100%;padding:11px;border:none;border-radius:12px;background:#128C7E;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="shareLater()">🕓 COMPARTIR POR LATER</button>
     <button class="btn btn-stop" style="width:100%;padding:11px;border:none;border-radius:12px;background:var(--s2);border:1px solid var(--bd);color:var(--red);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="stopAndClear()">⏹ DETENER COMPARTICIÓN</button>
   </div>
@@ -314,6 +323,30 @@ let lastPub = 0, lastViewTs = 0, vTimer = null;
 let destCoords = null, destName = '', totalDist = null;
 let arrivedShown = false, arrTimer = null;
 let myLat = null, myLng = null;
+let expAt = null, viewExpired = false, viewExp = null;
+
+// Caducidad: el que comparte fija el momento (ahora + duración) y lo manda en
+// cada punto (`exp`). Al llegar, deja de publicar y borra el mensaje retenido;
+// el visor además se rehúsa a mostrar un punto con `exp` vencido (por si el
+// que comparte cerró la app y el último punto quedó retenido en el broker).
+// Es una barrera del lado del cliente: sin servidor propio no hay otra.
+function setDuration(toast_) {
+  const m = +document.getElementById('dur').value;
+  expAt = m ? Date.now() + m * 60000 : null;
+  if (toast_) toast(m ? '⏱ La liga caduca a las ' + new Date(expAt).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}) : '⏱ La liga no caduca');
+}
+function expireShare() {
+  stopAndClear();
+  toast('⏰ Terminó el tiempo: dejaste de compartir', 5000);
+}
+function showViewExpired() {
+  if (viewExpired) return;
+  viewExpired = true;
+  if (viewMarker) { map.removeLayer(viewMarker); viewMarker = null; }
+  document.getElementById('v-sub').textContent = '⏰ Esta liga ya caducó';
+  toast('⏰ Esta liga ya caducó', 6000);
+}
+setInterval(() => { if (IS_VIEWER && viewExp && Date.now() > viewExp) showViewExpired(); }, 5000);
 
 // ══════════════════════════════════════
 //  BOOT
@@ -330,8 +363,12 @@ window.addEventListener('load', () => {
   acquireWakeLock();
 });
 
+// 12 caracteres (60 bits) con crypto: imposible de adivinar. Antes eran 6 con
+// Math.random, y como el código ES el tema MQTT en un broker público, era la
+// única barrera.
 function genCode() {
-  return Array.from({length:6}, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random()*32|0]).join('');
+  const a = new Uint8Array(12); crypto.getRandomValues(a);
+  return Array.from(a, b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b & 31]).join('');
 }
 
 // ── WAKE LOCK
@@ -405,6 +442,7 @@ function nextBroker() {
 function startGPS() {
   if (!navigator.geolocation) { toast('❌ GPS no disponible'); return; }
   isTracking = true;
+  setDuration(false);
   setV('s-state','ACTIVO','var(--ac)');
   watchId = navigator.geolocation.watchPosition(onGPS, onGPSErr,
     {enableHighAccuracy:true, timeout:20000, maximumAge:1000});
@@ -412,6 +450,7 @@ function startGPS() {
 }
 
 function onGPS(pos) {
+  if (expAt && Date.now() > expAt) { expireShare(); return; }
   const {latitude:lat, longitude:lng, accuracy:acc, speed:spd} = pos.coords;
   myLat = lat; myLng = lng;
   const ll = [lat, lng];
@@ -443,7 +482,8 @@ function onGPS(pos) {
       lat:+lat.toFixed(6), lng:+lng.toFixed(6),
       acc:Math.round(acc), spd:spd?+(spd*3.6).toFixed(1):0, ts:now,
       trail: myTrail.slice(-50).map(p=>[+p[0].toFixed(6),+p[1].toFixed(6)]),
-      dest: destCoords ? {lat:destCoords[0], lng:destCoords[1], name:destName} : null
+      dest: destCoords ? {lat:destCoords[0], lng:destCoords[1], name:destName} : null,
+      exp: expAt
     };
     client.publish(PFX+CODE, JSON.stringify(payload), {retain:true, qos:1});
   }
@@ -571,6 +611,9 @@ function subscribeViewer() {
 
 function onData(d) {
   if (!IS_VIEWER) return;
+  viewExp = d.exp || null;
+  if (viewExp && Date.now() > viewExp) { showViewExpired(); return; }
+  if (viewExpired) return;
   lastViewTs = d.ts || Date.now();
   const ll = [d.lat, d.lng];
 
