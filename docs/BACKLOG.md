@@ -36,3 +36,11 @@
   hable directo con el broker MQTT podría ignorar `exp`; el código largo es lo
   que lo hace impráctico. Las ligas viejas de 6 caracteres siguen abriendo.
 - `docs`: el aviso del GPS en iPhone (solo con pantalla encendida) sigue pendiente.
+
+## 29-sep-2026 — Hecho: aviso del GPS en iPhone
+
+- `index.html`: recuadro fijo en la vista de quien comparte ("Deja esta
+  pantalla abierta…") y un toast al volver a la app si estuvo fuera más de 10 s
+  mientras compartía (`visibilitychange`), para que sepa que el otro vio la
+  ubicación congelada. La causa es de iOS: una PWA no recibe GPS en segundo
+  plano; el Wake Lock solo evita que la pantalla se apague sola.

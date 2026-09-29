@@ -265,6 +265,9 @@ body.viewer-mode .sharer-only{display:none}
         <option value="0">Sin límite</option>
       </select>
     </div>
+    <div style="font-size:12px;line-height:1.35;color:var(--mu);background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px 10px">
+      📌 <b>Deja esta pantalla abierta.</b> En iPhone, si bloqueas el teléfono o cambias de app, tu ubicación deja de actualizarse y quien te ve la verá congelada.
+    </div>
     <button style="width:100%;padding:11px;border:none;border-radius:12px;background:#128C7E;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="shareLater()">🕓 COMPARTIR POR LATER</button>
     <button class="btn btn-stop" style="width:100%;padding:11px;border:none;border-radius:12px;background:var(--s2);border:1px solid var(--bd);color:var(--red);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer" onclick="stopAndClear()">⏹ DETENER COMPARTICIÓN</button>
   </div>
@@ -380,8 +383,15 @@ async function acquireWakeLock() {
     }
   } catch(e) {}
 }
+let hiddenAt = 0;
 document.addEventListener('visibilitychange', async () => {
-  if (document.visibilityState === 'visible') acquireWakeLock();
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  acquireWakeLock();
+  // Al volver: si estuvo fuera un rato mientras compartía, el otro vio la
+  // ubicación congelada — avisar en vez de dejarlo pensar que siguió.
+  if (!IS_VIEWER && isTracking && hiddenAt && Date.now() - hiddenAt > 10000)
+    toast('⚠️ Saliste de la app ' + Math.round((Date.now() - hiddenAt) / 1000) + ' s: tu ubicación se quedó congelada para quien te ve', 6000);
+  hiddenAt = 0;
 });
 
 // ══════════════════════════════════════
