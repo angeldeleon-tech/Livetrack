@@ -1,5 +1,45 @@
 # Backlog — Livetrack
 
+## 05-oct-2026 — Hecho: zonas de riesgo de inundación (geocerca)
+
+- **Causa:** manejando bajo lluvia, el vehículo no debe meterse a
+  encharcamientos. La capa de RainViewer te enseña dónde está lloviendo, pero
+  no sabe en qué cruces el agua se junta hasta inundar. Faltaba una capa de
+  **zonas conocidas** con aviso cuando el GPS entra.
+- **Realidad del dato:** no existe hoy una API pública gratuita y estable de
+  inundaciones en vivo para MX consumible desde un HTML estático. CENAPRED y
+  CONAGUA no exponen JSON; Protección Civil publica PDFs y shapefiles. Lo
+  entregable sin backend es un **seed de polígonos** editable a mano.
+- **Cambio:** constante `FLOOD_ZONES` inline en `index.html` con 7 polígonos
+  seed (5 CDMX, 1 GDL, 1 MTY) de puntos de encharcamiento severo conocidos
+  (Viaducto/Churubusco, bajopuente Mixcoac, Río San Joaquín, Fray Servando,
+  Taxqueña; Patria/López Mateos; Garza Sada). Cada feature lleva `name`,
+  `severity` (1-3) y `city`. Las coordenadas son aproximadas: cuadrados de
+  ~300-500 m sobre el cruce. **Se enriquece a mano** con reportes locales.
+- **UI:** botón 💧 nuevo en el header. Prendido → dibuja los polígonos como
+  capa Leaflet (rojo severidad 3, ámbar severidad 2, click abre popup con
+  nombre y ciudad). Independiente del botón 🌧 (RainViewer).
+- **Alerta geocerca (`checkFloodZone`):** en cada `onGPS` corre
+  point-in-polygon por ray casting contra todos los features; si el punto
+  entra en una zona, toast + vibración (`[120,80,120,80,250]`). Un solo
+  aviso por entrada: no re-alerta mientras sigas dentro de la misma, pero
+  si sales y vuelves a entrar en otra, sí dispara. Cooldown adicional de
+  60 s para evitar spam en el borde del polígono.
+- **Al fijar destino:** `setDest` verifica si el destino cae en una zona y
+  avisa antes de que arranques.
+- **Fix de paso:** `toast(msg, ms)` ahora respeta el segundo parámetro — ya
+  había 3 usos pasando duración (5-6 s) que la firma antigua ignoraba.
+- **Decisión de embeber en lugar de servir archivo:** `vercel.json` reescribe
+  todo a `/index.html`, así que `/zonas-inundacion.geojson` devolvería el HTML.
+  Para no tocar la config de deploy ni introducir fetch con posibles fallas,
+  los datos van inline. Si pasa de ~50 features, migrar a archivo + ajustar
+  `routes` con `{handle:"filesystem"}` antes del rewrite.
+- **Verificación:** parse JS OK, GeoJSON OK (7 features, todos los anillos
+  cerrados), 51/51 divs, 11/11 buttons, 3/3 scripts.
+- **Pendiente:** validar coordenadas con fuentes oficiales (Atlas CENAPRED,
+  Protección Civil CDMX) y ampliar cobertura por ciudades donde el usuario
+  manejará. UI para que el usuario agregue sus propias zonas desde la app.
+
 ## 05-oct-2026 — Hecho: botón Waze/Google Maps + capa de lluvia (RainViewer)
 
 - **Causa:** manejando se necesita ruta óptima, tráfico y alertas de riesgo

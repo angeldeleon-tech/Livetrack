@@ -216,6 +216,7 @@ body.viewer-mode .sharer-only{display:none}
   <span class="logo">LIVE<em>TRACK</em></span>
   <div class="cdot" id="cdot"></div>
   <span class="clbl" id="clbl">CONECTANDO</span>
+  <button onclick="toggleFlood()" id="flood-btn" class="rain-btn" title="Zonas de riesgo de inundación">💧</button>
   <button onclick="toggleRain()" id="rain-btn" class="rain-btn" title="Capa de lluvia">🌧</button>
   <button onclick="toggleTheme()" id="theme-btn" style="background:none;border:1px solid var(--bd);color:var(--tx);border-radius:20px;padding:4px 10px;font-size:13px;cursor:pointer;margin-left:4px;font-family:'IBM Plex Mono',monospace;flex-shrink:0">☀️</button>
 </div>
@@ -518,6 +519,9 @@ function onGPS(pos) {
   // Destination check
   if (destCoords) checkArrival(lat, lng);
 
+  // Flood zone check (geocerca)
+  checkFloodZone(lat, lng);
+
   // Publish (always publish on first fix, then throttle)
   const now = Date.now();
   if (connected && (myTrail.length === 1 || now - lastPub >= PUB_MS)) {
@@ -614,6 +618,9 @@ async function setDest() {
     arrivedShown = false;
     showNavRow(true);
     toast('✅ Destino fijado: '+q);
+    // Si el destino cae en una zona de inundación, avisar
+    const dz = floodZoneAt(destCoords[0], destCoords[1]);
+    if (dz) toast(`⚠️ Tu destino está en zona de encharcamiento: ${dz.properties.name}`, 7000);
   } catch(e) { toast('❌ Error buscando destino'); }
 }
 
@@ -794,6 +801,97 @@ function toggleTheme() {
 }
 
 // ══════════════════════════════════════
+//  ZONAS DE RIESGO DE INUNDACIÓN
+// ══════════════════════════════════════
+// Seed inicial con polígonos aproximados de puntos de encharcamiento severo
+// conocidos (CDMX principalmente, 1-2 GDL/MTY como arranque). No hay API
+// pública gratuita de inundación en vivo para MX consumible desde un HTML
+// estático: CENAPRED/CONAGUA no exponen JSON estable, Protección Civil
+// publica PDFs/shapefiles. Esto es un seed; se enriquece a mano con reportes.
+// Formato: GeoJSON FeatureCollection. Cada feature necesita name + severity
+// (1-3). Al entrar el GPS en un polígono, aviso + vibración.
+const FLOOD_ZONES = {
+  type: 'FeatureCollection',
+  features: [
+    { type:'Feature', properties:{ name:'Viaducto / Río Churubusco (Tlalpan)', severity:3, city:'CDMX' },
+      geometry:{ type:'Polygon', coordinates:[[[-99.1500,19.3660],[-99.1395,19.3660],[-99.1395,19.3730],[-99.1500,19.3730],[-99.1500,19.3660]]] } },
+    { type:'Feature', properties:{ name:'Bajopuente Mixcoac (Insurgentes Sur)', severity:3, city:'CDMX' },
+      geometry:{ type:'Polygon', coordinates:[[[-99.1920,19.3680],[-99.1870,19.3680],[-99.1870,19.3720],[-99.1920,19.3720],[-99.1920,19.3680]]] } },
+    { type:'Feature', properties:{ name:'Río San Joaquín / Legaria', severity:2, city:'CDMX' },
+      geometry:{ type:'Polygon', coordinates:[[[-99.2060,19.4480],[-99.1980,19.4480],[-99.1980,19.4530],[-99.2060,19.4530],[-99.2060,19.4480]]] } },
+    { type:'Feature', properties:{ name:'Fray Servando / Candelaria', severity:2, city:'CDMX' },
+      geometry:{ type:'Polygon', coordinates:[[[-99.1150,19.4260],[-99.1080,19.4260],[-99.1080,19.4310],[-99.1150,19.4310],[-99.1150,19.4260]]] } },
+    { type:'Feature', properties:{ name:'Taxqueña / Calz. de Tlalpan', severity:2, city:'CDMX' },
+      geometry:{ type:'Polygon', coordinates:[[[-99.1450,19.3330],[-99.1380,19.3330],[-99.1380,19.3380],[-99.1450,19.3380],[-99.1450,19.3330]]] } },
+    { type:'Feature', properties:{ name:'Av. Patria / López Mateos', severity:2, city:'GDL' },
+      geometry:{ type:'Polygon', coordinates:[[[-103.4040,20.6760],[-103.3960,20.6760],[-103.3960,20.6820],[-103.4040,20.6820],[-103.4040,20.6760]]] } },
+    { type:'Feature', properties:{ name:'Av. Garza Sada (zona Tec)', severity:2, city:'MTY' },
+      geometry:{ type:'Polygon', coordinates:[[[-100.2840,25.6280],[-100.2780,25.6280],[-100.2780,25.6340],[-100.2840,25.6340],[-100.2840,25.6280]]] } }
+  ]
+};
+
+let floodLayer = null, floodOn = false, lastFloodAlert = 0, insideFloodZone = null;
+
+function toggleFlood() {
+  floodOn = !floodOn;
+  const btn = document.getElementById('flood-btn');
+  btn.classList.toggle('on', floodOn);
+  if (floodOn) {
+    floodLayer = L.geoJSON(FLOOD_ZONES, {
+      style: f => ({
+        color: f.properties.severity >= 3 ? '#ff3d5a' : '#ffab40',
+        weight: 2, opacity: .9,
+        fillColor: f.properties.severity >= 3 ? '#ff3d5a' : '#ffab40',
+        fillOpacity: .22
+      }),
+      onEachFeature: (f, l) => {
+        const sev = f.properties.severity >= 3 ? 'ALTA' : 'MEDIA';
+        l.bindPopup(`<b>⚠️ ${f.properties.name}</b><br>Encharcamiento · severidad ${sev}<br><em>${f.properties.city}</em>`);
+      }
+    }).addTo(map);
+    toast(`💧 Zonas de riesgo activas (${FLOOD_ZONES.features.length})`);
+  } else {
+    if (floodLayer) { map.removeLayer(floodLayer); floodLayer = null; }
+    toast('💧 Zonas de riesgo ocultas');
+  }
+}
+
+// Point-in-polygon por ray casting. GeoJSON usa [lng, lat] en coordenadas.
+function pointInPolygon(lat, lng, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Devuelve el feature cuyo polígono contiene el punto, o null.
+function floodZoneAt(lat, lng) {
+  for (const f of FLOOD_ZONES.features) {
+    const rings = f.geometry.coordinates; // Polygon: [[outer], [hole1], ...]
+    if (rings[0] && pointInPolygon(lat, lng, rings[0])) return f;
+  }
+  return null;
+}
+
+function checkFloodZone(lat, lng) {
+  const z = floodZoneAt(lat, lng);
+  if (!z) { insideFloodZone = null; return; }
+  // Un solo aviso por entrada; si sigue dentro, no re-alerta hasta salir y volver.
+  if (insideFloodZone === z.properties.name) return;
+  insideFloodZone = z.properties.name;
+  const now = Date.now();
+  if (now - lastFloodAlert < 60000) return;
+  lastFloodAlert = now;
+  try { navigator.vibrate && navigator.vibrate([120,80,120,80,250]); } catch(e){}
+  toast(`⚠️ ZONA DE ENCHARCAMIENTO: ${z.properties.name}`, 7000);
+}
+
+// ══════════════════════════════════════
 //  CAPA DE LLUVIA (RainViewer)
 // ══════════════════════════════════════
 // RainViewer publica radar meteorológico mundial gratis, sin API key. El
@@ -852,10 +950,10 @@ function setV(id,val,col) {
   e.textContent=val; if(col)e.style.color=col;
 }
 let _tt;
-function toast(msg) {
+function toast(msg, ms) {
   const e=document.getElementById('toast');
   e.textContent=msg; e.classList.add('show');
-  clearTimeout(_tt); _tt=setTimeout(()=>e.classList.remove('show'),3200);
+  clearTimeout(_tt); _tt=setTimeout(()=>e.classList.remove('show'), ms || 3200);
 }
 </script>
 </body>
