@@ -1,5 +1,28 @@
 # Backlog — Livetrack
 
+## 05-oct-2026 — Hecho: botón Waze/Google Maps + capa de lluvia (RainViewer)
+
+- **Causa:** manejando se necesita ruta óptima, tráfico y alertas de riesgo
+  (inundaciones) para no mojar el vehículo. LiveTrack solo compartía el punto
+  GPS; sin routing ni meteorología.
+- **Cambio 1 — Navegación externa (`openInWaze`, `openInGMaps`):** al fijar
+  destino aparece una fila con dos botones (WAZE / MAPS). Delegan routing,
+  tráfico e incidentes a Waze y Google Maps vía deep-link (`waze.com/ul?ll=…`
+  y `google.com/maps/dir/?api=1&destination=…`). También se muestran en modo
+  visor cuando el que comparte envía destino, para que el receptor pueda
+  navegar al mismo lugar.
+- **Cambio 2 — Capa de lluvia (`toggleRain`, `loadRainLayer`):** botón 🌧 en
+  el header. Usa `api.rainviewer.com/public/weather-maps.json` (gratis, sin
+  API key); se agarra el último frame disponible y se pinta encima del mapa
+  con `L.tileLayer` en un pane propio (`rain`, z-index 350) para que el
+  filtro CSS del modo oscuro no decolore el radar. Refresca cada 10 min.
+- **Verificación:** `node` smoke test — tags balanceadas (51 divs, 10 botones,
+  3 scripts) y el JS inline parsea sin errores. Falta probar en móvil con GPS
+  real que el deep-link a Waze abra la app nativa (en escritorio abre la web).
+- **Pendiente / siguiente paso:** alertas de inundación por zona (polígonos
+  de riesgo + aviso cuando el GPS entra en uno) — fuente oficial varía por
+  ciudad; en MX habría que juntar datos de Protección Civil local o CONAGUA.
+
 ## 29-sep-2026 — Pendiente: compartir la liga en vivo por LaterWhats + caducidad
 
 - **Repo correcto:** este (`livetrack`) es la versión más completa; `ltrax` es

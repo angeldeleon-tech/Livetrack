@@ -71,6 +71,30 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Barlow',
 .dest-val{font-size:13px;color:var(--ac);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 .dest-clear{font-size:20px;color:var(--mu);margin-left:auto;flex-shrink:0;padding:2px 6px}
 
+/* NAV ROW (Waze / Maps) */
+.nav-row{margin:0 16px 10px;display:flex;gap:8px}
+.nav-btn{
+  flex:1;padding:11px 8px;border:none;border-radius:12px;cursor:pointer;
+  font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:#fff;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:transform .15s,opacity .2s;
+}
+.nav-btn:active{transform:scale(.96)}
+.nav-waze{background:#33ccff}
+.nav-gmaps{background:#4285f4}
+
+/* RAIN TOGGLE (header) */
+.rain-btn{
+  background:none;border:1px solid var(--bd);color:var(--tx);
+  border-radius:20px;padding:4px 10px;font-size:13px;cursor:pointer;
+  margin-left:4px;font-family:'IBM Plex Mono',monospace;flex-shrink:0;
+  transition:background .2s,color .2s;
+}
+.rain-btn.on{background:rgba(64,196,255,.18);color:var(--blue);border-color:rgba(64,196,255,.4)}
+
+/* RainViewer tiles: no filtrar en modo oscuro (ya son de color) */
+.leaflet-rain-pane{filter:none !important;opacity:.72}
+
 /* PROGRESS BAR */
 .prog-wrap{margin:0 16px 10px;display:none}
 .prog-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
@@ -192,7 +216,8 @@ body.viewer-mode .sharer-only{display:none}
   <span class="logo">LIVE<em>TRACK</em></span>
   <div class="cdot" id="cdot"></div>
   <span class="clbl" id="clbl">CONECTANDO</span>
-  <button onclick="toggleTheme()" id="theme-btn" style="background:none;border:1px solid var(--bd);color:var(--tx);border-radius:20px;padding:4px 10px;font-size:13px;cursor:pointer;margin-left:6px;font-family:'IBM Plex Mono',monospace;flex-shrink:0">☀️</button>
+  <button onclick="toggleRain()" id="rain-btn" class="rain-btn" title="Capa de lluvia">🌧</button>
+  <button onclick="toggleTheme()" id="theme-btn" style="background:none;border:1px solid var(--bd);color:var(--tx);border-radius:20px;padding:4px 10px;font-size:13px;cursor:pointer;margin-left:4px;font-family:'IBM Plex Mono',monospace;flex-shrink:0">☀️</button>
 </div>
 
 <!-- MAP -->
@@ -219,6 +244,16 @@ body.viewer-mode .sharer-only{display:none}
       <div class="dest-val" id="dest-val">Toca para definir destino</div>
     </div>
     <span class="dest-clear" id="dest-clear" onclick="clearDest(event)" style="display:none">✕</span>
+  </div>
+
+  <!-- NAV ROW: aparece cuando hay destino, en modo sharer o viewer -->
+  <div class="nav-row" id="nav-row" style="display:none">
+    <button class="nav-btn nav-waze" onclick="openInWaze()">
+      <span style="font-size:16px">🧭</span> WAZE
+    </button>
+    <button class="nav-btn nav-gmaps" onclick="openInGMaps()">
+      <span style="font-size:16px">🗺️</span> MAPS
+    </button>
   </div>
 
   <!-- PROGRESS BAR -->
@@ -511,6 +546,7 @@ function stopAndClear() {
   document.getElementById('prog-wrap').style.display='none';
   document.getElementById('dest-val').textContent='Toca para definir destino';
   document.getElementById('dest-clear').style.display='none';
+  showNavRow(false);
   if (destMarker) { map.removeLayer(destMarker); destMarker=null; }
   toast('⏹ Compartición detenida');
 }
@@ -576,6 +612,7 @@ async function setDest() {
       map.fitBounds([[myLat,myLng],destCoords],{padding:[60,60]});
     }
     arrivedShown = false;
+    showNavRow(true);
     toast('✅ Destino fijado: '+q);
   } catch(e) { toast('❌ Error buscando destino'); }
 }
@@ -586,7 +623,29 @@ function clearDest(e) {
   document.getElementById('dest-val').textContent='Toca para definir destino';
   document.getElementById('dest-clear').style.display='none';
   document.getElementById('prog-wrap').style.display='none';
+  showNavRow(false);
   if (destMarker) { map.removeLayer(destMarker); destMarker=null; }
+}
+
+// ══════════════════════════════════════
+//  NAVEGACIÓN EXTERNA (Waze / Google Maps)
+// ══════════════════════════════════════
+// Delegar routing+tráfico a Waze/Maps: ellos ya tienen incidentes, cierres y
+// ETA. LiveTrack sigue siendo el mapa de ubicación compartida; la navegación
+// se abre en otra pestaña/app.
+function showNavRow(on) {
+  document.getElementById('nav-row').style.display = on ? 'flex' : 'none';
+}
+function openInWaze() {
+  if (!destCoords) { toast('⚠️ Primero fija un destino'); return; }
+  const [lat,lng] = destCoords;
+  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`, '_blank');
+}
+function openInGMaps() {
+  if (!destCoords) { toast('⚠️ Primero fija un destino'); return; }
+  const [lat,lng] = destCoords;
+  const q = destName ? encodeURIComponent(destName) : `${lat},${lng}`;
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${q}&travelmode=driving`, '_blank');
 }
 
 function checkArrival(lat,lng) {
@@ -641,8 +700,11 @@ function onData(d) {
   // Destination from publisher
   if (d.dest) {
     const dc = [d.dest.lat, d.dest.lng];
+    destCoords = dc;
+    destName = d.dest.name || '';
     if (!destMarker) destMarker=L.marker(dc,{icon:dIcon}).addTo(map);
     else destMarker.setLatLng(dc);
+    showNavRow(true);
     // Check arrival for viewer too
     if (!arrivedShown) {
       const dist = haversine(d.lat,d.lng,dc[0],dc[1]);
@@ -729,6 +791,52 @@ function toggleTheme() {
   document.getElementById('theme-btn').textContent = darkTheme ? '☀️' : '🌙';
   document.body.style.background = darkTheme ? 'var(--bg)' : '#f0f4f8';
   setTiles();
+}
+
+// ══════════════════════════════════════
+//  CAPA DE LLUVIA (RainViewer)
+// ══════════════════════════════════════
+// RainViewer publica radar meteorológico mundial gratis, sin API key. El
+// endpoint devuelve una lista de frames (`past` + `nowcast`); se usa el último
+// frame disponible y se refresca cada 10 min. Las tiles son PNG de color, así
+// que viven en un pane propio para que el filtro CSS del modo oscuro no las
+// decolore.
+let rainLayer = null, rainOn = false, rainTimer = null;
+
+async function toggleRain() {
+  rainOn = !rainOn;
+  const btn = document.getElementById('rain-btn');
+  btn.classList.toggle('on', rainOn);
+  if (rainOn) {
+    toast('🌧 Cargando radar de lluvia…');
+    const ok = await loadRainLayer();
+    if (!ok) { rainOn = false; btn.classList.remove('on'); toast('❌ No se pudo cargar el radar'); return; }
+    rainTimer = setInterval(loadRainLayer, 10 * 60000);
+    toast('🌧 Radar de lluvia activo');
+  } else {
+    if (rainTimer) { clearInterval(rainTimer); rainTimer = null; }
+    if (rainLayer) { map.removeLayer(rainLayer); rainLayer = null; }
+    toast('☀️ Radar de lluvia apagado');
+  }
+}
+
+async function loadRainLayer() {
+  try {
+    const r = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const d = await r.json();
+    const frames = [...(d.radar?.past || []), ...(d.radar?.nowcast || [])];
+    if (!frames.length) return false;
+    const latest = frames[frames.length - 1];
+    const url = `${d.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    if (!map.getPane('rain')) {
+      map.createPane('rain');
+      map.getPane('rain').classList.add('leaflet-rain-pane');
+      map.getPane('rain').style.zIndex = 350;
+    }
+    if (rainLayer) map.removeLayer(rainLayer);
+    rainLayer = L.tileLayer(url, {pane:'rain', maxZoom:19, tileSize:256, opacity:1}).addTo(map);
+    return true;
+  } catch(e) { return false; }
 }
 
 // ══════════════════════════════════════
