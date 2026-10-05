@@ -427,6 +427,14 @@ document.addEventListener('visibilitychange', async () => {
   if (!IS_VIEWER && isTracking && hiddenAt && Date.now() - hiddenAt > 10000)
     toast('⚠️ Saliste de la app ' + Math.round((Date.now() - hiddenAt) / 1000) + ' s: tu ubicación se quedó congelada para quien te ve', 6000);
   hiddenAt = 0;
+  // Si el MQTT se cayó mientras estabas fuera (típico al salir a Waze/Maps
+  // en iPhone: iOS pausa la pestaña y el broker cierra la conexión), hay
+  // que reconectar a mano porque reconnectPeriod:0.
+  if (!connected) {
+    try { client?.end(true); } catch(e) {}
+    brokerIdx = 0;
+    setTimeout(initMQTT, 400);
+  }
 });
 
 // ══════════════════════════════════════
@@ -932,7 +940,13 @@ async function loadRainLayer() {
       map.getPane('rain').style.zIndex = 350;
     }
     if (rainLayer) map.removeLayer(rainLayer);
-    rainLayer = L.tileLayer(url, {pane:'rain', maxZoom:19, tileSize:256, opacity:1}).addTo(map);
+    // RainViewer solo tiene tiles hasta zoom 10. Con maxNativeZoom Leaflet
+    // reescala esas tiles cuando el mapa está en zoom alto, en vez de pedir
+    // tiles inexistentes que devuelven el PNG "Zoom Level Not Supported".
+    rainLayer = L.tileLayer(url, {
+      pane:'rain', tileSize:256, opacity:1,
+      maxNativeZoom:10, maxZoom:19
+    }).addTo(map);
     return true;
   } catch(e) { return false; }
 }

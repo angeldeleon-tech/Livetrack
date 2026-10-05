@@ -1,5 +1,24 @@
 # Backlog — Livetrack
 
+## 05-oct-2026 — Fix: "Zoom Level Not Supported" en el radar + "RECONECTANDO" al volver de Waze
+
+- **Causa 1 (radar):** RainViewer solo publica tiles hasta zoom 10. Como el
+  mapa se centra en el GPS a zoom 16, Leaflet pedía `/16/x/y.png` y el
+  servidor devolvía un PNG estático con la leyenda "Zoom Level Not Supported"
+  encima del mapa.
+- **Fix 1:** `loadRainLayer` → `L.tileLayer(..., {maxNativeZoom:10, maxZoom:19})`.
+  Leaflet reescala los tiles del zoom nativo 10 para los niveles superiores,
+  así el radar se ve (más pixelado, pero visible y correcto) en zoom alto.
+- **Causa 2 (MQTT):** `mqtt.connect(..., {reconnectPeriod: 0, ...})` desactiva
+  la reconexión automática de la librería. Al salir a Waze/Maps, iOS pausa la
+  pestaña y el broker cierra la conexión; el handler `close` solo cambiaba el
+  badge a RECONECTANDO pero nunca reintentaba. Quedaba el texto permanente.
+- **Fix 2:** en `visibilitychange` al volver visible, si `!connected` se
+  cierra el cliente, se resetea `brokerIdx = 0` y se llama a `initMQTT()`
+  tras 400 ms. Reconecta solo desde el primer broker.
+- **Verificación:** parse JS OK. Pendiente: validar en el cel que al salir a
+  Waze y volver, el badge pase de RECONECTANDO a CONECTADO en segundos.
+
 ## 05-oct-2026 — Hecho: zonas de riesgo de inundación (geocerca)
 
 - **Causa:** manejando bajo lluvia, el vehículo no debe meterse a
