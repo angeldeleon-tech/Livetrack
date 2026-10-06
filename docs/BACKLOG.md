@@ -1,5 +1,17 @@
 # Backlog — Livetrack
 
+## 06-oct-2026 — Hecho: gesto de arrastre del handle del panel
+
+- **Cambio:** `initSheetDrag` suscribe `pointerdown/move/up/cancel` al
+  `.handle-tap`. Durante el drag se desactiva la transición y se aplica
+  `translateY(Npx)` inline en vivo (clamp 0 a `offsetHeight - 34`). Al
+  soltar: si `|dy| < 6` se interpreta como tap y se hace toggle; si pasó
+  `max(40, maxOffset * 0.25)` cambia de estado, si no snap atrás.
+- **CSS:** `touch-action: none` en `.handle-tap` para que iOS no haga
+  scroll vertical durante el drag; cursor `grab`/`grabbing`.
+- **Verificación:** parse JS OK. Falta probar en el cel que el drag se
+  sienta natural y el tap siga funcionando.
+
 ## 06-oct-2026 — Hecho: panel inferior colapsable para mapa a pantalla completa
 
 - **Causa:** manejando, el bottom sheet con stats/botones/aviso ocupa ~45 %

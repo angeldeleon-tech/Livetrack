@@ -52,11 +52,12 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Barlow',
   padding-bottom:max(20px,env(safe-area-inset-bottom));
   transition:transform .4s cubic-bezier(.32,1,.28,1);
 }
-/* HANDLE: tap para colapsar/expandir el panel */
+/* HANDLE: tap o arrastre para colapsar/expandir el panel */
 .handle-tap{
   display:flex;align-items:center;justify-content:center;gap:8px;
-  padding:10px 0 12px;cursor:pointer;user-select:none;
+  padding:10px 0 12px;cursor:grab;user-select:none;touch-action:none;
 }
+.handle-tap:active{cursor:grabbing}
 .handle{width:36px;height:4px;background:var(--bd);border-radius:4px;transition:background .2s}
 .handle-tap:active .handle{background:var(--ac)}
 .handle-hint{
@@ -241,9 +242,9 @@ body.viewer-mode .sharer-only{display:none}
 
 <!-- BOTTOM SHEET -->
 <div class="sheet" id="sheet">
-  <div class="handle-tap" onclick="toggleSheet()" title="Mostrar/ocultar panel">
+  <div class="handle-tap" id="handle-tap" title="Arrastra o toca para colapsar">
     <div class="handle"></div>
-    <span class="handle-hint">TOCA PARA EXPANDIR</span>
+    <span class="handle-hint">TOCA O ARRASTRA</span>
   </div>
 
   <!-- STATS -->
@@ -827,24 +828,70 @@ function toggleTheme() {
 }
 
 // ══════════════════════════════════════
-//  BOTTOM SHEET COLAPSABLE
+//  BOTTOM SHEET COLAPSABLE + DRAG
 // ══════════════════════════════════════
-// Tap en el handle colapsa el panel para dejar el mapa a pantalla completa
-// (útil manejando). Estado persistido en localStorage.
+// Tap colapsa/expande. También se puede arrastrar el handle con el dedo:
+// durante el drag se aplica translateY inline (sin transición) y al soltar
+// se decide snap arriba o abajo según distancia. Estado en localStorage.
 function toggleSheet(force) {
   const s = document.getElementById('sheet');
   const want = typeof force === 'boolean' ? force : !s.classList.contains('collapsed');
   s.classList.toggle('collapsed', want);
   try { localStorage.setItem('lt_sheet_collapsed', want ? '1' : '0'); } catch(e) {}
-  // Dejar que termine la animación antes de recalcular el mapa.
   setTimeout(() => { try { map && map.invalidateSize(); } catch(e) {} }, 450);
 }
-// Restaurar al cargar
+
+function initSheetDrag() {
+  const sheet = document.getElementById('sheet');
+  const tap = document.getElementById('handle-tap');
+  if (!tap || !sheet) return;
+  let startY = 0, dy = 0, dragging = false, baseCollapsed = false, maxOffset = 0;
+
+  const onDown = (e) => {
+    dragging = true;
+    startY = e.clientY ?? (e.touches && e.touches[0].clientY) ?? 0;
+    dy = 0;
+    baseCollapsed = sheet.classList.contains('collapsed');
+    maxOffset = sheet.offsetHeight - 34;
+    sheet.style.transition = 'none';
+    try { tap.setPointerCapture && tap.setPointerCapture(e.pointerId); } catch(_) {}
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    const y = e.clientY ?? (e.touches && e.touches[0].clientY) ?? 0;
+    dy = y - startY;
+    const base = baseCollapsed ? maxOffset : 0;
+    const t = Math.max(0, Math.min(maxOffset, base + dy));
+    sheet.style.transform = `translateY(${t}px)`;
+    if (e.cancelable) e.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    // Tap puro (sin arrastre significativo) → toggle
+    if (Math.abs(dy) < 6) { toggleSheet(!baseCollapsed); return; }
+    // Si el arrastre superó ~25% del recorrido, cambiar estado
+    const threshold = Math.max(40, maxOffset * 0.25);
+    let collapse;
+    if (baseCollapsed) collapse = dy > -threshold; // arrastró poco hacia arriba → sigue colapsado
+    else               collapse = dy > threshold;  // arrastró lo suficiente abajo → colapsa
+    toggleSheet(collapse);
+  };
+
+  tap.addEventListener('pointerdown', onDown);
+  tap.addEventListener('pointermove', onMove);
+  tap.addEventListener('pointerup', onUp);
+  tap.addEventListener('pointercancel', onUp);
+}
+
 window.addEventListener('load', () => {
   try {
     if (localStorage.getItem('lt_sheet_collapsed') === '1')
       document.getElementById('sheet').classList.add('collapsed');
   } catch(e) {}
+  initSheetDrag();
 });
 
 // ══════════════════════════════════════
