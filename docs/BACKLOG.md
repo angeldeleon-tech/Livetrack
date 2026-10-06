@@ -1,5 +1,23 @@
 # Backlog — Livetrack
 
+## 06-oct-2026 — Hecho: panel inferior colapsable para mapa a pantalla completa
+
+- **Causa:** manejando, el bottom sheet con stats/botones/aviso ocupa ~45 %
+  de la pantalla; el mapa queda chico. El `.handle` (barrita visual) ya
+  existía pero no hacía nada; el CSS del `.sheet` ya tenía `transition` en
+  `transform`, así que la base estaba lista pero sin cablear.
+- **Cambio:** el handle ahora vive dentro de `.handle-tap` (área táctil
+  cómoda) con `onclick="toggleSheet()"`. En estado colapsado, el sheet se
+  baja con `translateY(calc(100% - 34px))` dejando solo la zona del handle
+  visible, el mapa gana ~45 % de alto, y aparece la leyenda "TOCA PARA
+  EXPANDIR" dentro del propio handle. `pointer-events:none` en los hijos
+  del sheet colapsado evita taps accidentales sobre botones ocultos.
+- **Persistencia:** estado en `localStorage.lt_sheet_collapsed`. Al cargar
+  se restaura. Al final de la animación (450 ms) se llama
+  `map.invalidateSize()` para que Leaflet recalcule el centro y los tiles.
+- **Verificación:** parse JS OK, 52/52 divs. Falta probar en el cel que
+  la animación corra fluida y el toque sobre el handle sea cómodo.
+
 ## 05-oct-2026 — Fix: "Zoom Level Not Supported" en el radar + "RECONECTANDO" al volver de Waze
 
 - **Causa 1 (radar):** RainViewer solo publica tiles hasta zoom 10. Como el

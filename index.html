@@ -52,7 +52,22 @@ html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Barlow',
   padding-bottom:max(20px,env(safe-area-inset-bottom));
   transition:transform .4s cubic-bezier(.32,1,.28,1);
 }
-.handle{width:36px;height:4px;background:var(--bd);border-radius:4px;margin:12px auto 16px}
+/* HANDLE: tap para colapsar/expandir el panel */
+.handle-tap{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:10px 0 12px;cursor:pointer;user-select:none;
+}
+.handle{width:36px;height:4px;background:var(--bd);border-radius:4px;transition:background .2s}
+.handle-tap:active .handle{background:var(--ac)}
+.handle-hint{
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--mu);
+  opacity:0;transition:opacity .2s;
+}
+.sheet.collapsed .handle-hint{opacity:1}
+
+/* Estado colapsado: deja ~34px visibles (solo la zona del handle) */
+.sheet.collapsed{transform:translateY(calc(100% - 34px))}
+.sheet.collapsed > *:not(.handle-tap){pointer-events:none}
 
 /* STATS */
 .stats{display:flex;gap:8px;padding:0 16px 12px}
@@ -226,7 +241,10 @@ body.viewer-mode .sharer-only{display:none}
 
 <!-- BOTTOM SHEET -->
 <div class="sheet" id="sheet">
-  <div class="handle"></div>
+  <div class="handle-tap" onclick="toggleSheet()" title="Mostrar/ocultar panel">
+    <div class="handle"></div>
+    <span class="handle-hint">TOCA PARA EXPANDIR</span>
+  </div>
 
   <!-- STATS -->
   <div class="stats">
@@ -807,6 +825,27 @@ function toggleTheme() {
   document.body.style.background = darkTheme ? 'var(--bg)' : '#f0f4f8';
   setTiles();
 }
+
+// ══════════════════════════════════════
+//  BOTTOM SHEET COLAPSABLE
+// ══════════════════════════════════════
+// Tap en el handle colapsa el panel para dejar el mapa a pantalla completa
+// (útil manejando). Estado persistido en localStorage.
+function toggleSheet(force) {
+  const s = document.getElementById('sheet');
+  const want = typeof force === 'boolean' ? force : !s.classList.contains('collapsed');
+  s.classList.toggle('collapsed', want);
+  try { localStorage.setItem('lt_sheet_collapsed', want ? '1' : '0'); } catch(e) {}
+  // Dejar que termine la animación antes de recalcular el mapa.
+  setTimeout(() => { try { map && map.invalidateSize(); } catch(e) {} }, 450);
+}
+// Restaurar al cargar
+window.addEventListener('load', () => {
+  try {
+    if (localStorage.getItem('lt_sheet_collapsed') === '1')
+      document.getElementById('sheet').classList.add('collapsed');
+  } catch(e) {}
+});
 
 // ══════════════════════════════════════
 //  ZONAS DE RIESGO DE INUNDACIÓN
