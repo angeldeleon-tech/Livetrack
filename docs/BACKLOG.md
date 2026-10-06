@@ -167,3 +167,17 @@
   claro sin filtro. Se quitó el filtro por mosaico de `.leaflet-tile` (se
   aplicaba doble).
 - **Ojo:** `ltrax` tiene el mismo problema (mismo proveedor de mapas).
+
+
+## Sincronización con el Maestro de Drive y backlog-global — 2026-10-06
+
+Pendientes y decisiones registrados hoy en «KA - Backlog Maestro» (sección **Livetrack**), tras auditar este repo contra el buzón:
+
+- [ ] LVT-001 | P2 | Proceder a renombrar a «Ruta-KAi» en repositorio, stack, documentación y referencias del ecosistema (DECISIÓN-ANX confirmada) | Chat | 2026-10-06
+- [ ] LVT-002 | P1 | DECISIÓN-ANX: diseño de ruteo propio anti-inundación para Monterrey (capa histórica + lluvia SMN + reportes sociales + umbral en mm + Google Routes API con bloqueos); seguridad sobre tiempo | Chat | 2026-10-06
+- [ ] LVT-003 | P1 | Cuello de botella: Livetrack solo envía ubicación actual, no conoce la ruta futura (la calculan Waze/Google); para alertas preventivas hay que integrar API de rutas o predecir ruta; evaluar viabilidad y costos | Chat | 2026-10-06
+- [ ] LVT-004 | P1 | DECISIÓN-ANX: «Modo seguridad bajo coacción» con toggles: pregunta señuelo camuflada para verificar recálculo, destino señuelo en pantalla y alias camuflados para destinos frecuentes | Chat | 2026-10-06
+- [ ] LVT-005 | P1 | DECISIÓN-ANX: zonas de exclusión manual personalizadas (calles/colonias inseguras) que el ruteo nunca usa; la pantalla de edición solo disponible con el GPS detenido | Chat | 2026-10-06
+- [ ] LVT-006 | P2 | Anx: validar en celular que al volver de Waze el badge pasa de RECONECTANDO a CONECTADO y que el deep-link abre la app nativa | Anx | 2026-10-06
+- [ ] LVT-007 | P3 | Validar coordenadas de FLOOD_ZONES contra fuentes oficiales (CENAPRED, Protección Civil) y UI para zonas propias | Code | 2026-10-06
+- [ ] LVT-008 | P2 | DECISIÓN-ANX: confirmar qué repo está desplegado en Vercel, Livetrack o Ltrax; Ltrax aún tiene el mapa de CARTO sin API key y código de 6 caracteres sin caducidad (portar fixes o archivar) | Anx | 2026-10-06
