@@ -181,3 +181,8 @@ Pendientes y decisiones registrados hoy en «KA - Backlog Maestro» (sección **
 - [ ] LVT-006 | P2 | Anx: validar en celular que al volver de Waze el badge pasa de RECONECTANDO a CONECTADO y que el deep-link abre la app nativa | Anx | 2026-10-06
 - [ ] LVT-007 | P3 | Validar coordenadas de FLOOD_ZONES contra fuentes oficiales (CENAPRED, Protección Civil) y UI para zonas propias | Code | 2026-10-06
 - [ ] LVT-008 | P2 | DECISIÓN-ANX: confirmar qué repo está desplegado en Vercel, Livetrack o Ltrax; Ltrax aún tiene el mapa de CARTO sin API key y código de 6 caracteres sin caducidad (portar fixes o archivar) | Anx | 2026-10-06
+
+
+## Sincronización synka — 9 oct 2026
+
+- **LVT-005 decidido (6-oct):** las zonas de exclusión se marcan **desde un trayecto** (al terminar uno que dio mala espina, la app ofrece excluir esa zona). Si el destino cae dentro de una zona excluida, la ruta evita cruzarla y solo entra cuando el destino está adentro. La pantalla de edición solo abre con el GPS detenido. Falta diseñar: tamaño de la zona, cómo se revierte un error y la lista de zonas guardadas. El modo coacción (LVT-004) sigue sin decidir.
