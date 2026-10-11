@@ -186,3 +186,10 @@ Pendientes y decisiones registrados hoy en «KA - Backlog Maestro» (sección **
 ## Sincronización synka — 9 oct 2026
 
 - **LVT-005 decidido (6-oct):** las zonas de exclusión se marcan **desde un trayecto** (al terminar uno que dio mala espina, la app ofrece excluir esa zona). Si el destino cae dentro de una zona excluida, la ruta evita cruzarla y solo entra cuando el destino está adentro. La pantalla de edición solo abre con el GPS detenido. Falta diseñar: tamaño de la zona, cómo se revierte un error y la lista de zonas guardadas. El modo coacción (LVT-004) sigue sin decidir.
+
+## Sincronización con el Maestro — 2026-10-11
+
+Pendientes y avances registrados hoy en «KA - Backlog Maestro» (sección **Livetrack**) tras auditar este repo (`/synka`):
+
+- [ ] LVT-010 | P2 | Anx: probar en el celular el panel inferior colapsable (tap y arrastre del handle): animación fluida, tap funcionando y mapa que recalcula bien al colapsar (el repo lo marca como no probado en dispositivo) | Anx | 2026-10-06
+- Bitácora: 2026-10-06 | s/v | Panel inferior colapsable con tap en el handle (estado en localStorage, el mapa gana ~45% de alto) y gesto de arrastre del handle con snap | 09b28a0, 6e6a148
